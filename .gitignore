@@ -1,0 +1,23 @@
+# Environment
+.venv/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local database — the prototype's SQLite file
+*.db
+*.sqlite3
+
+# macOS
+.DS_Store
+
+# Per-machine Claude Code permission grants — project skills stay tracked
+.claude/settings.local.json

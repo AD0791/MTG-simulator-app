@@ -41,6 +41,30 @@ async def test_simulator_shows_three_primary_inputs_and_a_collapsed_panel(
     assert '<details class="advanced">' in body  # collapsed: no `open`
 
 
+async def test_simulator_pre_checks_breakeven_and_double_but_hides_profit_recovery(
+    client: AsyncClient,
+) -> None:
+    """Profit recovery is identical to breakeven at the default $0 target, so
+    it shouldn't be offered until a target above $0 makes it distinct."""
+    response = await client.get("/simulator")
+
+    body = response.text
+    assert 'name="strategies" value="adder_breakeven"' in body
+    assert 'name="strategies" value="double"' in body
+    assert 'name="strategies" value="adder_profit"' not in body
+
+
+async def test_submitting_with_no_strategy_checked_is_rejected(client: AsyncClient) -> None:
+    """A real browser omits an unchecked checkbox from the POST entirely —
+    this reproduces that, not an explicit empty value."""
+    form = {k: v for k, v in REFERENCE_FORM.items() if k != "strategies"}
+    response = await client.post("/simulator", data=form)
+
+    assert response.status_code == 422
+    assert 'id="strategies-error"' in response.text
+    assert "Choose at least one strategy." in response.text
+
+
 async def test_submitting_the_reference_case_redirects_to_its_result(
     client: AsyncClient,
 ) -> None:
@@ -54,6 +78,60 @@ async def test_submitting_the_reference_case_redirects_to_its_result(
     assert "910.00" in page.text
     assert "163.00" in page.text
     assert "WALL" in page.text
+
+
+async def test_selecting_one_strategy_behaves_as_a_single_run(client: AsyncClient) -> None:
+    """One box checked shouldn't route through the comparison view at all."""
+    response = await client.post("/simulator", data={**REFERENCE_FORM, "strategies": ["double"]})
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/results/")
+    assert "/group/" not in response.headers["location"]
+
+
+async def test_selecting_two_strategies_redirects_to_a_comparison(
+    client: AsyncClient, session: Session
+) -> None:
+    response = await client.post(
+        "/simulator",
+        data={**REFERENCE_FORM, "strategies": ["adder_breakeven", "double"]},
+    )
+
+    assert response.status_code == 303
+    assert "/results/group/" in response.headers["location"]
+
+    page = await client.get(response.headers["location"])
+    assert page.status_code == 200
+    assert "Breakeven recovery" in page.text
+    assert "Double" in page.text
+    # Each strategy's own wall, both present on one page.
+    assert "910.00" in page.text and "163.00" in page.text
+    assert "1620.00" in page.text and "190.00" in page.text
+
+    stored = session.scalars(select(Simulation)).all()
+    assert len(stored) == 2
+    assert stored[0].run_group is not None
+    assert stored[0].run_group == stored[1].run_group
+
+
+async def test_clearing_a_comparison_clears_every_run_in_it(
+    client: AsyncClient, session: Session
+) -> None:
+    created = await client.post(
+        "/simulator",
+        data={**REFERENCE_FORM, "strategies": ["adder_breakeven", "double"]},
+    )
+    group_path = created.headers["location"]
+
+    response = await client.post(f"{group_path}/delete")
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/history"
+    assert (await client.get(group_path)).status_code == 404
+
+    stored = session.scalars(select(Simulation)).all()
+    assert len(stored) == 2
+    assert all(s.deleted_at is not None for s in stored)
 
 
 async def test_a_rejected_plan_keeps_its_values_and_names_the_field(
@@ -135,6 +213,22 @@ async def test_clearing_one_run_returns_to_history(client: AsyncClient, session:
     assert response.headers["location"] == "/history"
     assert (await client.get(path)).status_code == 404
     assert session.scalars(select(Simulation)).one().deleted_at is not None
+
+
+async def test_history_shows_the_strategy_and_links_a_comparison_to_its_group(
+    client: AsyncClient,
+) -> None:
+    await client.post(
+        "/simulator",
+        data={**REFERENCE_FORM, "strategies": ["adder_breakeven", "double"]},
+    )
+
+    listed = await client.get("/history")
+
+    assert "Breakeven recovery" in listed.text
+    assert "Double" in listed.text
+    assert '<th scope="col">Strategy</th>' in listed.text
+    assert "/results/group/" in listed.text
 
 
 async def test_a_missing_run_renders_a_page_not_a_json_body(client: AsyncClient) -> None:

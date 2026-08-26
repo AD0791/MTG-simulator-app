@@ -11,7 +11,7 @@ reinforces what the printed share already says.
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ..domain.staking_simulator import StakingConfig, StakingTable
 from ..models import Simulation, SimulationEntry
@@ -22,6 +22,13 @@ BANDS = (
     (0.25, "elevated"),
     (0.10, "caution"),
 )
+
+# Reader-facing names for the STRATEGIES keys in `domain.staking_simulator`.
+STRATEGY_LABELS = {
+    "adder_breakeven": "Breakeven recovery",
+    "adder_profit": "Profit recovery",
+    "double": "Double",
+}
 
 
 def band_for(share: float) -> str:
@@ -95,8 +102,10 @@ def wall(simulation: Simulation) -> WallRow | None:
 REFERENCE_CONFIG = StakingConfig(capital=1000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92)
 
 
-def worked_example() -> tuple[list[LadderRow], WallRow | None]:
-    table = StakingTable.build(REFERENCE_CONFIG)
+def worked_example(strategy: str = "adder_profit") -> tuple[list[LadderRow], WallRow | None]:
+    """The reference case, run under any strategy — same capital and openers,
+    so the landing page can show more than one method side by side."""
+    table = StakingTable.build(replace(REFERENCE_CONFIG, strategy=strategy))
     rows = [
         _row(r.label, r.stake, r.cumulative_loss, r.balance, r.balance_if_win) for r in table.rows
     ]

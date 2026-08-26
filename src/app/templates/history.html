@@ -19,17 +19,20 @@
           <th scope="col">When</th>
           <th scope="col" class="num">Capital</th>
           <th scope="col" class="num">Payout</th>
+          <th scope="col">Strategy</th>
           <th scope="col" class="num">Survived</th>
           <th scope="col">Outcome</th>
         </tr>
       </thead>
       <tbody>
         {% for run in simulations %}
+          {% set run_href = "/results/group/" ~ run.run_group if run.run_group else "/results/" ~ run.id %}
           <tr>
-            <th scope="row"><a href="/results/{{ run.id }}">#{{ run.id }}</a></th>
+            <th scope="row"><a href="{{ run_href }}">#{{ run.id }}</a></th>
             <td class="figure">{{ run.created_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
             <td class="num">${{ "%.2f"|format(run.capital) }}</td>
             <td class="num">{{ "%.2f"|format(run.payout_ratio * 100) }}%</td>
+            <td>{{ strategy_labels.get(run.strategy, run.strategy) }}</td>
             <td class="num">{{ run.losses_survived }}</td>
             <td>
               {% if run.wall_hit %}

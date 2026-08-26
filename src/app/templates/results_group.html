@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Comparison — Martingale Wall Simulator{% endblock %}
+{% block description %}Several strategies run against the same plan, side by side.{% endblock %}
+
+{% block content %}
+<header>
+  <h1>Strategies compared</h1>
+  <p>
+    Same capital, payout, and opening entries — {{ tables|length }} strategies, each carried to its
+    own wall.
+  </p>
+</header>
+
+{# The verdict for every table, side by side, so the comparison survives being
+   stacked on a narrow screen. #}
+<ul class="stats">
+  {% for table in tables %}
+    <li class="stat{% if table.wall %} stat--wall{% endif %}">
+      <span class="stat__label">{{ table.label }}</span>
+      <span class="stat__value">{{ table.simulation.losses_survived }} survived</span>
+      {% if table.wall %}
+        <span class="stat__note">
+          wall at ${{ "%.2f"|format(table.wall.required_stake) }}, only
+          ${{ "%.2f"|format(table.wall.balance_available) }} left
+        </span>
+      {% else %}
+        <span class="stat__note">no wall within the {{ table.simulation.max_entries }}-entry cap</span>
+      {% endif %}
+    </li>
+  {% endfor %}
+</ul>
+
+{% for table in tables %}
+  <div class="strategy-block">
+    <h2>{{ table.label }}</h2>
+    {% if table.wall %}
+      <p class="strategy-verdict">
+        Placed {{ table.simulation.losses_survived }} entries, then needed
+        <span class="figure">${{ "%.2f"|format(table.wall.required_stake) }}</span> against
+        <span class="figure">${{ "%.2f"|format(table.wall.balance_available) }}</span> remaining.
+      </p>
+    {% else %}
+      <p class="strategy-verdict">
+        No wall within {{ table.simulation.max_entries }} entries.
+      </p>
+    {% endif %}
+
+    {% with ladder = table.ladder, wall = table.wall %}
+      {% include "partials/_results_table.html" %}
+    {% endwith %}
+  </div>
+{% endfor %}
+
+<div class="actions">
+  <a class="button" href="/simulator">Run another</a>
+  <a class="button button--quiet" href="/history">All runs</a>
+  <form method="post" action="/results/group/{{ run_group }}/delete">
+    <button class="button button--danger" type="submit">Clear this comparison</button>
+  </form>
+</div>
+
+<p class="note">
+  Clearing marks every run in this comparison as deleted and keeps the data. Nothing is dropped.
+</p>
+{% endblock %}

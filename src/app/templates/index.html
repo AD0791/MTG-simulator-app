@@ -67,17 +67,45 @@
 <section>
   <h2>The plan this tool models</h2>
   <ol>
-    <li><strong>Entry 1a and 1b</strong> — two entries placed by hand on the first candle.</li>
     <li>
-      <strong>From the second entry on</strong> — the stake is computed from the accumulated debt
-      using the formula above, rounded up to the next whole dollar. It is the smallest whole-dollar
-      stake that would recover the entire streak if it won.
+      <strong>Entry 1a and 1b</strong> — two entries placed by hand on the first candle, shared by
+      every strategy below. Neither has acted yet, so the streak has not started.
+    </li>
+    <li>
+      <strong>From the second entry on</strong> — one of two ways of sizing the stake takes over:
     </li>
   </ol>
+
+  <dl class="callout">
+    <dt>Recovery formula ("adder")</dt>
+    <dd>
+      <span class="figure">stake = ceil( (cumulative loss + target profit) &divide; payout ratio )</span>
+      — the smallest whole-dollar stake that would recover the entire streak, plus any target
+      profit, if it won. At a target of $0 this is called <strong>breakeven recovery</strong>;
+      above $0, <strong>profit recovery</strong>.
+    </dd>
+    <dt>Double</dt>
+    <dd>
+      <span class="figure">stake = 2 &times; cumulative loss</span> — simplest to describe, and the
+      subject of the honesty note below.
+    </dd>
+  </dl>
+
   <p>
     The simulation assumes the worst case throughout: <strong>every entry loses</strong>. It stops
-    the instant the next required stake is larger than the balance.
+    the instant the next required stake is larger than the balance. The simulator can run either
+    strategy, or both side by side, against the same capital and openers.
   </p>
+
+  <div class="callout">
+    <p>
+      <strong>Doubling is not broken arithmetic.</strong> At a 92% payout, a win under the double
+      strategy still clears the entire debt and returns a profit on top of it. What doubling does
+      differently is burn capital faster — it reaches the wall in fewer entries than the recovery
+      formula, not because a win fails to pay off, but because each stake is a larger bite out of
+      what remains. The account runs out sooner, not the arithmetic.
+    </p>
+  </div>
 </section>
 
 <section>
@@ -85,10 +113,11 @@
   <p>
     ${{ "%.0f"|format(config.capital) }} of capital, ${{ "%.0f"|format(config.entry_1a) }} and
     ${{ "%.0f"|format(config.entry_1b) }} on the first candle, at a
-    {{ "%.0f"|format(config.payout_ratio * 100) }}% payout. This table is produced by the simulator
-    itself, not written by hand.
+    {{ "%.0f"|format(config.payout_ratio * 100) }}% payout. Both tables are produced by the
+    simulator itself, not written by hand.
   </p>
 
+  <h3>Breakeven recovery</h3>
   <div class="example">
     {% include "partials/_results_table.html" %}
   </div>
@@ -99,6 +128,23 @@
     band. The account cannot cover a ninth: it would need $910 and only $163 is left, and the plan
     stops there. Nothing warns the trader in advance, which is exactly why the danger is worth
     measuring: it is invisible until the entry before last.
+  </p>
+
+  <h3>Double</h3>
+  <div class="example">
+    {% with ladder = double_ladder, wall = double_wall %}
+      {% include "partials/_results_table.html" %}
+    {% endwith %}
+  </div>
+
+  <p>
+    Same capital, same openers, same payout — but the recovery formula survives eight entries and
+    doubling survives only six. Doubling doesn't fail here either: a win on entry 5's $540 stake
+    would have cleared the entire $810 lost so far and left the balance at $1,226.80 — well above
+    the $1,000 it started with. The wall arrives right after: entry 6 would need $1,620, and only
+    $190 is left. That contrast — not a difference in whether either method works, but in how fast
+    each one spends the account down — is the whole argument for comparing them side by side rather
+    than picking one on faith.
   </p>
 </section>
 
@@ -114,6 +160,17 @@
   </p>
   <p class="actions">
     <a class="button" href="/simulator">Run your own numbers</a>
+  </p>
+</section>
+
+<section>
+  <h2>Comparing strategies</h2>
+  <p>
+    The simulator can run breakeven recovery, profit recovery, and doubling against the same
+    capital and openers in one submission — check as many as apply and each gets its own table,
+    with every wall's figures collected in a summary strip above them. Profit recovery only
+    appears once a target profit above $0 is set, because at $0 it produces the identical table to
+    breakeven recovery.
   </p>
 </section>
 
@@ -183,6 +240,17 @@
     <p>
       An amount demanded on top of recovery, from the second entry onward. At zero the plan aims at
       breakeven plus rounding. Raising it enlarges every computed stake and brings the wall closer.
+    </p>
+  </details>
+
+  <details>
+    <summary>Does doubling recover a loss, or not?</summary>
+    <p>
+      It does. A win under the double strategy returns twice the stake at the payout ratio, which
+      clears the entire debt and leaves a profit on top — the same as the recovery formula. The
+      difference is speed, not success: doubling stakes more of what remains at every step, so it
+      reaches the wall sooner. Comparing the two side by side in the simulator makes that visible
+      without taking either claim on faith.
     </p>
   </details>
 </section>

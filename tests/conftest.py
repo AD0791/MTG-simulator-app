@@ -34,6 +34,13 @@ REFERENCE_FORM = {
     "entry_1b": "5",
     "target_profit": "0",
     "max_entries": "50",
+    # Required: an unchecked checkbox is simply absent from a real POST, so
+    # `RawSimulationForm.strategies` defaults to empty rather than to some
+    # pre-picked set, and an empty selection is a validation error, not a
+    # run. One strategy here keeps this form behaving as a single run, not a
+    # comparison. breakeven and profit recovery are identical at this form's
+    # $0 target, so the resulting ladder is the same 910/163/8 case either way.
+    "strategies": ["adder_breakeven"],
 }
 
 

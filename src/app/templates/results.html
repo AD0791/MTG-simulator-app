@@ -7,6 +7,7 @@
 <header>
   <h1>Run #{{ simulation.id }}</h1>
   <p>
+    <strong>{{ strategy_label }}</strong> &middot;
     ${{ "%.2f"|format(simulation.capital) }} capital &middot;
     {{ "%.2f"|format(simulation.payout_ratio * 100) }}% payout &middot;
     ${{ "%.2f"|format(simulation.entry_1a) }} + ${{ "%.2f"|format(simulation.entry_1b) }} on the
@@ -63,6 +64,12 @@
 {% endif %}
 
 {% include "partials/_results_table.html" %}
+
+{% if simulation.run_group %}
+  <p class="note">
+    Part of a comparison. <a href="/results/group/{{ simulation.run_group }}">See every strategy in this run</a>.
+  </p>
+{% endif %}
 
 <div class="actions">
   <a class="button" href="/simulator">Run another</a>

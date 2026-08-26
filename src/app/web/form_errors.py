@@ -34,6 +34,8 @@ def _readable(error: Mapping[str, object]) -> str:
             return "Enter a number."
         case "missing":
             return "This field is required."
+        case "too_short":
+            return "Choose at least one strategy."
         case _:
             return str(error.get("msg", "Invalid value."))
 
@@ -50,6 +52,10 @@ def from_domain(exc: ValueError, submitted: Mapping[str, str]) -> dict[str, str]
         return {"target_profit": message.capitalize() + "."}
     if "must all be positive" in message:
         return {_offending_entry(submitted): "Enter an amount above zero."}
+    if "strategy must be one of" in message:
+        # Reachable only by a hand-crafted request — the checkboxes only ever
+        # post the names the template itself renders.
+        return {"strategies": "Choose a valid strategy."}
     return {"__form__": message}
 
 

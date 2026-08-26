@@ -4,9 +4,10 @@ Two tables rather than one: the ladder is a child table, not a JSON blob, so the
 schema behaves the same on SQLite, PostgreSQL, and MySQL.
 """
 
+import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..models.base import Base, TimestampMixin, UtcDateTime
@@ -18,6 +19,12 @@ class Simulation(Base, TimestampMixin):
     __tablename__ = "simulations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+
+    # Shared by every row a single form submission produced when more than one
+    # strategy was compared side by side. Null for a single-strategy run,
+    # including every run made through the JSON API, which only ever submits
+    # one strategy per request.
+    run_group: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True, default=None)
 
     # Inputs.
     capital: Mapped[float]

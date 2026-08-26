@@ -271,6 +271,42 @@ section h3 {
 }
 .field--invalid .field__control { border-color: var(--danger); }
 
+/* A fieldset reset — browsers add a border and padding neither `.field` nor
+   the rest of the form has, and `legend` needs to read exactly like
+   `.field__label` so the strategy group doesn't look like a different kind
+   of control. */
+fieldset.field {
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--s6);
+  min-width: 0;
+}
+fieldset.field > legend {
+  padding: 0;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: 0 var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+}
+.checkbox input { accent-color: var(--accent); width: 1.1em; height: 1.1em; }
+/* Progressive enhancement only — the native checkbox already shows checked
+   state without this, so an unsupporting browser loses nothing functional. */
+.checkbox:has(input:checked) { border-color: var(--accent); background: var(--accent-dim); }
+.field--invalid .checkbox-group .checkbox { border-color: var(--danger); }
+
 .advanced {
   margin: var(--s8) 0;
   border: 1px solid var(--border);
@@ -363,6 +399,27 @@ section h3 {
 }
 .stat--wall .stat__value { color: var(--danger); }
 .stat__note { display: block; font-size: .85rem; color: var(--muted); }
+
+/* --- strategy comparison ------------------------------------------------ */
+
+.strategy-block {
+  margin-top: var(--s16);
+  padding-top: var(--s8);
+  border-top: 1px solid var(--border);
+}
+.strategy-block:first-of-type {
+  margin-top: var(--s8);
+  padding-top: 0;
+  border-top: 0;
+}
+.strategy-block h2 {
+  font-size: 1.35rem;
+  margin-bottom: var(--s2);
+}
+.strategy-block .strategy-verdict {
+  color: var(--muted);
+  margin-bottom: var(--s4);
+}
 
 /* --- the ladder -------------------------------------------------------- */
 

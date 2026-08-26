@@ -9,9 +9,15 @@ caller, and a second copy here would drift from it.
 `SimulationSummary` dropped `second_entry` from the v1 contract without cutting
 a v2 (roadmap item 0) — the API had no external consumers, and the stored
 column is kept nullable so already-recorded runs keep their data.
+
+`strategies` on the form is a request-shape concern, not a domain one — the
+domain only ever knows one strategy at a time (`StakingConfig.strategy`), so
+"at least one strategy chosen" is policed here, in `Field(min_length=1)`, and
+each individual name is left to the same domain rejection a bad payout gets.
 """
 
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -56,6 +62,14 @@ class RawSimulationForm(BaseModel):
     entry_1b: str = "5"
     target_profit: str = "0"
     max_entries: str = "50"
+    # Checkboxes sharing one `name` post as repeated form keys, which Form()
+    # collects into a list the same way repeated query keys do. Defaults to
+    # empty, not a suggested selection: an unchecked checkbox is omitted from
+    # the POST entirely, so an empty default here is what lets "every box
+    # unchecked" surface as SimulationForm's min_length=1 rejection instead
+    # of silently falling back to some pre-picked set of strategies. The
+    # simulator page's own suggested checked state lives in `DEFAULT_FORM`.
+    strategies: list[str] = Field(default_factory=list)
 
 
 class SimulationForm(BaseModel):
@@ -74,16 +88,24 @@ class SimulationForm(BaseModel):
     entry_1b: float = 5.0
     target_profit: float = 0.0
     max_entries: int = Field(default=50, ge=1, le=MAX_ENTRIES_CEILING)
+    # No default: always comes from `RawSimulationForm`, which supplies the
+    # key on every submission (empty when nothing was checked).
+    strategies: list[str] = Field(min_length=1)
 
-    def to_create(self) -> "SimulationCreate":
-        return SimulationCreate(
-            capital=self.capital,
-            entry_1a=self.entry_1a,
-            entry_1b=self.entry_1b,
-            payout_ratio=self.payout_percent / 100,
-            target_profit=self.target_profit,
-            max_entries=self.max_entries,
-        )
+    def to_creates(self) -> list["SimulationCreate"]:
+        """One `SimulationCreate` per selected strategy, sharing every other field."""
+        return [
+            SimulationCreate(
+                capital=self.capital,
+                entry_1a=self.entry_1a,
+                entry_1b=self.entry_1b,
+                payout_ratio=self.payout_percent / 100,
+                target_profit=self.target_profit,
+                max_entries=self.max_entries,
+                strategy=strategy,
+            )
+            for strategy in self.strategies
+        ]
 
 
 class EntryRead(BaseModel):
@@ -109,6 +131,10 @@ class SimulationSummary(BaseModel):
     capital: float
     payout_ratio: float
     strategy: str
+    # Set only when this run was one of several strategies compared from a
+    # single simulator submission; null for a standalone run and for every
+    # run made through the JSON API, which submits one strategy at a time.
+    run_group: UUID | None
     wall_hit: bool
     wall_required_stake: float | None
     wall_balance_available: float | None

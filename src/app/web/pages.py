@@ -41,15 +41,25 @@ def _see_other(path: str) -> RedirectResponse:
 def index(request: Request) -> Response:
     example_ladder, example_wall = bands.worked_example("adder_profit")
     double_ladder, double_wall = bands.worked_example("double")
+    config = bands.REFERENCE_CONFIG
     return templates.TemplateResponse(
         request,
         "index.html",
         {
-            "config": bands.REFERENCE_CONFIG,
+            "config": config,
             "ladder": example_ladder,
             "wall": example_wall,
             "double_ladder": double_ladder,
             "double_wall": double_wall,
+            # Identical for both tables — the openers are shared and neither
+            # strategy has acted yet.
+            "badge": bands.opener_badge(
+                config.capital,
+                config.entry_1a,
+                config.entry_1b,
+                config.payout_ratio,
+                config.target_profit,
+            ),
         },
     )
 
@@ -123,6 +133,13 @@ def results(request: Request, simulation_id: int, session: SessionDep) -> Respon
             "ladder": bands.ladder(simulation.entries),
             "wall": bands.wall(simulation),
             "strategy_label": bands.STRATEGY_LABELS.get(simulation.strategy, simulation.strategy),
+            "badge": bands.opener_badge(
+                simulation.capital,
+                simulation.entry_1a,
+                simulation.entry_1b,
+                simulation.payout_ratio,
+                simulation.target_profit,
+            ),
         },
     )
 
@@ -139,6 +156,13 @@ def results_group(request: Request, run_group: uuid.UUID, session: SessionDep) -
             "ladder": bands.ladder(simulation.entries),
             "wall": bands.wall(simulation),
             "label": bands.STRATEGY_LABELS.get(simulation.strategy, simulation.strategy),
+            "badge": bands.opener_badge(
+                simulation.capital,
+                simulation.entry_1a,
+                simulation.entry_1b,
+                simulation.payout_ratio,
+                simulation.target_profit,
+            ),
         }
         for simulation in simulations
     ]

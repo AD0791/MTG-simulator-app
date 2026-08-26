@@ -97,6 +97,33 @@ def wall(simulation: Simulation) -> WallRow | None:
     return _wall(simulation.wall_required_stake, simulation.wall_balance_available)
 
 
+@dataclass(frozen=True)
+class OpenerBadge:
+    """What happens if `entry_1a` and `entry_1b` both win — the ordinary case,
+    shown beside the ladder's worst case. Identical for every strategy: the
+    openers are shared inputs and neither has acted before the streak starts,
+    so nothing about how later stakes are sized has had a chance to matter yet.
+    """
+
+    profit: float
+    balance: float
+    target: float | None  # None when no target profit is set
+    meets_target: bool | None  # None when `target` is None
+
+
+def opener_badge(
+    capital: float, entry_1a: float, entry_1b: float, payout_ratio: float, target_profit: float
+) -> OpenerBadge:
+    profit = round((entry_1a + entry_1b) * payout_ratio, 2)
+    target = target_profit if target_profit > 0 else None
+    return OpenerBadge(
+        profit=profit,
+        balance=round(capital + profit, 2),
+        target=target,
+        meets_target=(profit >= target) if target is not None else None,
+    )
+
+
 # The published reference case. The landing page renders it by running the
 # simulator, so the worked example can never drift from what the tool produces.
 REFERENCE_CONFIG = StakingConfig(capital=1000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92)

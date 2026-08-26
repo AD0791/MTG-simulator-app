@@ -2,6 +2,30 @@
   The ladder. Each row's band is computed server-side and arrives as a name; the
   share is printed alongside so the escalation reads the same without colour.
 #}
+{% if badge %}
+  {# The ordinary case, ahead of the worst case: what both openers winning
+     returns. Identical across every strategy on this page — neither has
+     acted before the streak starts — so the wording says so rather than
+     leaving the repetition looking like an accident. #}
+  <div class="badge{% if badge.meets_target is sameas false %} badge--short{% endif %}">
+    <span class="badge__label">If both openers win</span>
+    <span class="badge__value">
+      {% if badge.target is not none %}
+        {% if badge.meets_target %}
+          clears the ${{ "%.2f"|format(badge.target) }} target by ${{ "%.2f"|format(badge.profit - badge.target) }}
+        {% else %}
+          ${{ "%.2f"|format(badge.target - badge.profit) }} short of the ${{ "%.2f"|format(badge.target) }} target
+        {% endif %}
+      {% else %}
+        +${{ "%.2f"|format(badge.profit) }}, balance ${{ "%.2f"|format(badge.balance) }}
+      {% endif %}
+    </span>
+    <span class="badge__note">
+      Same regardless of which strategy is running — the streak hasn't started yet.
+    </span>
+  </div>
+{% endif %}
+
 <div class="table-scroll">
   <table class="ladder">
     <caption class="visually-hidden">

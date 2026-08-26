@@ -25,6 +25,9 @@ async def test_landing_page_carries_the_theory_and_the_faq(client: AsyncClient) 
     # The worked example is produced by the simulator itself.
     assert "910.00" in body
     assert "163.00" in body
+    # The opener badge, once per worked example, both identical.
+    assert body.count('<div class="badge') == 2
+    assert body.count("+$9.20, balance $1009.20") == 2
 
 
 async def test_simulator_shows_three_primary_inputs_and_a_collapsed_panel(
@@ -78,6 +81,20 @@ async def test_submitting_the_reference_case_redirects_to_its_result(
     assert "910.00" in page.text
     assert "163.00" in page.text
     assert "WALL" in page.text
+    # No target set — the badge shows a plain profit, not a pass/fail.
+    assert "If both openers win" in page.text
+    assert "+$9.20, balance $1009.20" in page.text
+    assert "badge--short" not in page.text
+
+
+async def test_a_target_the_openers_cannot_meet_shows_a_shortfall_badge(
+    client: AsyncClient,
+) -> None:
+    response = await client.post("/simulator", data={**REFERENCE_FORM, "target_profit": "10"})
+    page = await client.get(response.headers["location"])
+
+    assert "$0.80 short of the $10.00 target" in page.text
+    assert 'class="badge badge--short"' in page.text
 
 
 async def test_selecting_one_strategy_behaves_as_a_single_run(client: AsyncClient) -> None:
@@ -107,6 +124,9 @@ async def test_selecting_two_strategies_redirects_to_a_comparison(
     # Each strategy's own wall, both present on one page.
     assert "910.00" in page.text and "163.00" in page.text
     assert "1620.00" in page.text and "190.00" in page.text
+    # The opener badge doesn't vary by strategy — it repeats once per table.
+    assert page.text.count('<div class="badge') == 2
+    assert page.text.count("+$9.20, balance $1009.20") == 2
 
     stored = session.scalars(select(Simulation)).all()
     assert len(stored) == 2

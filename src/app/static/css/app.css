@@ -421,6 +421,42 @@ fieldset.field > legend {
   margin-bottom: var(--s4);
 }
 
+/* --- opener badge -------------------------------------------------------- */
+
+/* The ordinary case, ahead of the ladder's worst case. A left border, like
+   the ramp, but on its own axis (target met or not) — never the same tint
+   vocabulary applied to a different question. */
+.badge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--s3);
+  row-gap: var(--s1);
+  margin-bottom: var(--s4);
+  padding: var(--s3) var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--calm);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.badge--short { border-left-color: var(--caution); }
+.badge__label {
+  font-size: .8rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.badge__value {
+  font-family: var(--font-figure);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.badge__note {
+  flex-basis: 100%;
+  font-size: .85rem;
+  color: var(--muted);
+}
+
 /* --- the ladder -------------------------------------------------------- */
 
 /* Below the first breakpoint the table scrolls inside its own container, with

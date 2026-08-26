@@ -102,7 +102,7 @@ timestamp rather than dropping data, so a cleared table can still be inspected.
 
 Production moves to PostgreSQL or MySQL. The schema is written to be portable and the move is a
 `DATABASE_URL` change plus `alembic upgrade head` — the same migrations build the schema on any of
-the three engines. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the migration path.
+the three engines.
 
 ## Layout
 
@@ -127,7 +127,6 @@ cd src && python3 -c "import app.domain.staking_simulator"
 
 ## Documentation
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system design, data model, migration path
-  (also as a PDF)
-- [staking_simulator_README.md](staking_simulator_README.md) — the domain module in detail: the
-  recurrence, the design decisions behind it, and the reference output
+The design documents — the architecture write-up with its layer diagram, ERD and migration path,
+and the detailed notes on the domain module — are kept in the surrounding workspace rather than in
+this repository, which holds the implementation only.

@@ -19,5 +19,12 @@ __pycache__/
 # macOS
 .DS_Store
 
-# Per-machine Claude Code permission grants — project skills stay tracked
-.claude/settings.local.json
+# Agent and session material. This repository is the implementation and nothing
+# else; assistant instructions, skills, and handoff prompts live in the
+# surrounding workspace and are never committed here.
+CLAUDE.md
+AGENTS.md
+EXECUTOR_PROMPT.md
+.claude/
+.cursor/
+.aider*

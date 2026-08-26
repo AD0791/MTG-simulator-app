@@ -35,6 +35,10 @@ class SimulationCreate(BaseModel):
     payout_ratio: float = 0.92
     target_profit: float = 0.0
     max_entries: int = Field(default=50, ge=1, le=MAX_ENTRIES_CEILING)
+    # One of STRATEGIES in `domain.staking_simulator`. Not constrained to a
+    # Literal here — an unknown name is a domain rejection, same seam as an
+    # impossible payout, not a second copy of the check.
+    strategy: str = "adder_profit"
 
 
 class RawSimulationForm(BaseModel):
@@ -104,6 +108,7 @@ class SimulationSummary(BaseModel):
     created_at: datetime
     capital: float
     payout_ratio: float
+    strategy: str
     wall_hit: bool
     wall_required_stake: float | None
     wall_balance_available: float | None

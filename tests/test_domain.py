@@ -28,6 +28,16 @@ REFERENCE_LADDER = [
     ("7", 436.0, 837.0, 163.0),
 ]
 
+# Same capital and openers, the "double" strategy: stake = 2 * cumulative_loss.
+DOUBLE_LADDER = [
+    ("1a", 5.0, 5.0, 995.0),
+    ("1b", 5.0, 10.0, 990.0),
+    ("2", 20.0, 30.0, 970.0),
+    ("3", 60.0, 90.0, 910.0),
+    ("4", 180.0, 270.0, 730.0),
+    ("5", 540.0, 810.0, 190.0),
+]
+
 
 def test_reference_case_hits_the_wall_on_entry_eight() -> None:
     table = StakingTable.build(StakingConfig(**REFERENCE))
@@ -108,3 +118,54 @@ def test_payout_ratio_of_exactly_one_is_accepted() -> None:
 def test_negative_target_profit_is_rejected() -> None:
     with pytest.raises(ValueError, match="target_profit cannot be negative"):
         StakingConfig(target_profit=-1.0)
+
+
+def test_adder_profit_is_the_default_strategy() -> None:
+    assert StakingConfig().strategy == "adder_profit"
+
+
+def test_unknown_strategy_is_rejected() -> None:
+    with pytest.raises(ValueError, match="strategy must be one of"):
+        StakingConfig(strategy="triple")
+
+
+def test_adder_breakeven_matches_adder_profit_at_zero_target() -> None:
+    """ceil((cum + 0) / p) is ceil(cum / p) — the same arithmetic, a different name."""
+    breakeven = StakingTable.build(StakingConfig(**REFERENCE, strategy="adder_breakeven"))
+    profit = StakingTable.build(StakingConfig(**REFERENCE, strategy="adder_profit"))
+
+    assert [(r.label, r.stake) for r in breakeven.rows] == [(r.label, r.stake) for r in profit.rows]
+
+
+def test_adder_breakeven_diverges_from_adder_profit_once_a_target_is_set() -> None:
+    breakeven = StakingTable.build(
+        StakingConfig(**{**REFERENCE, "target_profit": 10.0}, strategy="adder_breakeven")
+    )
+    profit = StakingTable.build(
+        StakingConfig(**{**REFERENCE, "target_profit": 10.0}, strategy="adder_profit")
+    )
+
+    assert breakeven.rows[2].stake != profit.rows[2].stake
+
+
+def test_double_strategy_ladder_matches_row_for_row() -> None:
+    table = StakingTable.build(StakingConfig(**REFERENCE, strategy="double"))
+
+    assert table.wall_hit is True
+    assert table.wall_required_stake == 1620
+    assert table.wall_balance_available == 190.0
+    assert table.losses_survived == 6
+    actual = [(r.label, r.stake, r.cumulative_loss, r.balance) for r in table.rows]
+    assert actual == DOUBLE_LADDER
+
+
+def test_double_survives_fewer_entries_than_adder_profit() -> None:
+    """The teaching point: doubling recovers and profits at a 92% payout too — it
+    just exhausts capital faster, reaching the wall sooner, not failing to recover."""
+    double = StakingTable.build(StakingConfig(**REFERENCE, strategy="double"))
+    adder = StakingTable.build(StakingConfig(**REFERENCE))
+
+    assert double.losses_survived < adder.losses_survived
+    # A win still clears the debt and profits — doubling isn't broken arithmetic.
+    for row in double.rows[2:]:
+        assert row.balance_if_win > 1000.0

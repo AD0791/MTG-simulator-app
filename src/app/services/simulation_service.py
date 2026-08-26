@@ -31,6 +31,7 @@ def run_and_store(session: Session, payload: SimulationCreate) -> Simulation:
         payout_ratio=config.payout_ratio,
         target_profit=config.target_profit,
         max_entries=config.max_entries,
+        strategy=config.strategy,
         wall_hit=table.wall_hit,
         wall_required_stake=table.wall_required_stake,
         wall_balance_available=table.wall_balance_available,

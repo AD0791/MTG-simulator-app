@@ -27,6 +27,12 @@ class Simulation(Base, TimestampMixin):
     payout_ratio: Mapped[float]
     target_profit: Mapped[float]
     max_entries: Mapped[int]
+    # One of the STRATEGIES names in `domain.staking_simulator`. Server-side
+    # default so the rows recorded before this method existed read as what
+    # they actually were computed with — adder_profit.
+    strategy: Mapped[str] = mapped_column(
+        String(20), default="adder_profit", server_default="adder_profit"
+    )
 
     # Outcome.
     wall_hit: Mapped[bool]

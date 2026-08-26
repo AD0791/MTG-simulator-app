@@ -4,10 +4,17 @@ staking_simulator.py
 Order-sizing simulator for binary-option-style trading (Pocket Option OTC).
 
 You specify the first two entries by hand (entry_1a, entry_1b on candle 1).
-From candle 2 onward, the stake is computed automatically from the debt:
-stake = ceil((cumulative_loss + target_profit) / payout_ratio), continuing
+From candle 2 onward, the stake is computed automatically by one of three
+named strategies -- adder_breakeven, adder_profit, or double -- continuing
 until the required stake exceeds the remaining balance -- the martingale
 wall.
+
+  adder_breakeven  stake = ceil(cumulative_loss / payout_ratio)
+  adder_profit     stake = ceil((cumulative_loss + target_profit) / payout_ratio)
+  double           stake = 2 * cumulative_loss
+
+adder_profit is the default -- it is what every stored run before the
+"double" method existed was computed with.
 
 StakingTable.build(config) is the entry point: pass a StakingConfig, get
 back a fully populated StakingTable. Everything is a dataclass DTO, so the
@@ -15,9 +22,31 @@ whole result serializes straight out of an API response.
 """
 
 from dataclasses import dataclass, field, asdict
-from typing import List, Optional
+from typing import Callable, Dict, List, Optional
 import json
 import math
+
+
+def _adder_breakeven(cumulative_loss: float, target_profit: float, payout_ratio: float) -> float:
+    return math.ceil(cumulative_loss / payout_ratio)
+
+
+def _adder_profit(cumulative_loss: float, target_profit: float, payout_ratio: float) -> float:
+    return math.ceil((cumulative_loss + target_profit) / payout_ratio)
+
+
+def _double(cumulative_loss: float, target_profit: float, payout_ratio: float) -> float:
+    return 2 * cumulative_loss
+
+
+# A strategy is a callable, selected by name -- not a class hierarchy. Three
+# values don't fit a flag, and a fourth is plausible, so the name is what's
+# stored and persisted.
+STRATEGIES: Dict[str, Callable[[float, float, float], float]] = {
+    "adder_breakeven": _adder_breakeven,
+    "adder_profit": _adder_profit,
+    "double": _double,
+}
 
 
 @dataclass
@@ -26,8 +55,9 @@ class StakingConfig:
     entry_1a: float = 5.0
     entry_1b: float = 5.0
     payout_ratio: float = 0.92       # 0.92 = 92% payout
-    target_profit: float = 0.0       # profit demanded on top of recovery, from entry 2 onward
+    target_profit: float = 0.0       # profit demanded on top of recovery (adder_profit only)
     max_entries: int = 50            # safety cap
+    strategy: str = "adder_profit"   # one of STRATEGIES
 
     def __post_init__(self):
         if self.capital <= 0:
@@ -38,6 +68,8 @@ class StakingConfig:
             raise ValueError("payout_ratio must be between 0 and 1")
         if self.target_profit < 0:
             raise ValueError("target_profit cannot be negative")
+        if self.strategy not in STRATEGIES:
+            raise ValueError(f"strategy must be one of {', '.join(STRATEGIES)}")
 
 
 @dataclass
@@ -79,11 +111,12 @@ class StakingTable:
                 label, stake, balance, cumulative_loss, entry_number
             )
 
+        stake_for = STRATEGIES[config.strategy]
+
         candle = 2
         while entry_number < config.max_entries:
             entry_number += 1
-            raw = (cumulative_loss + config.target_profit) / config.payout_ratio
-            stake = math.ceil(raw)
+            stake = stake_for(cumulative_loss, config.target_profit, config.payout_ratio)
 
             if stake > balance:
                 table._hit_wall(stake, balance, entry_number)

@@ -1,0 +1,69 @@
+[project]
+name = "mtg-simulator"
+version = "0.1.0"
+description = "Martingale wall simulator — locates the entry at which a staking plan can no longer fund its next stake."
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.19.1",
+    "fastapi>=0.141.1",
+    "jinja2>=3.1.6",
+    "pydantic-settings>=2.15.0",
+    "python-multipart>=0.0.32",
+    "sqlalchemy>=2.0.52",
+    "uvicorn[standard]>=0.52.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/app"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "ruff>=0.16.4",
+]
+
+# ---------------------------------------------------------------------------
+# Quality gates. All three live here and nowhere else — no setup.cfg, no
+# mypy.ini, no pytest.ini. One file, one place to look.
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+# Alembic writes these from its own template and owns their formatting.
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "C4", "SIM", "UP", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# The domain module was moved into this tree unchanged and stays that way. Its
+# pre-3.9 typing forms and its line lengths are part of "unchanged".
+"src/app/domain/*" = ["E501", "I001", "UP006", "UP035", "UP045"]
+
+[tool.ruff.format]
+# Same reason: reformatting it would be a modification.
+exclude = ["src/app/domain/*"]
+
+[tool.mypy]
+python_version = "3.13"
+files = ["src"]
+strict = true
+
+[[tool.mypy.overrides]]
+# The frozen domain module predates this project's annotation policy; its
+# `__post_init__` carries no return annotation and must not gain one.
+module = "app.domain.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

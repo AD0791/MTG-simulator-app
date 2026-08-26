@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}History — Martingale Wall Simulator{% endblock %}
+{% block description %}Every stored run, revisitable and clearable.{% endblock %}
+
+{% block content %}
+<header>
+  <h1>Past runs</h1>
+  <p>Newest first. Clearing marks runs as deleted and keeps the data — nothing is dropped.</p>
+</header>
+
+{% if simulations %}
+  <div class="table-scroll">
+    <table class="runs">
+      <caption class="visually-hidden">Stored simulations, newest first.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Run</th>
+          <th scope="col">When</th>
+          <th scope="col" class="num">Capital</th>
+          <th scope="col" class="num">Payout</th>
+          <th scope="col" class="num">Second entry</th>
+          <th scope="col" class="num">Survived</th>
+          <th scope="col">Outcome</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in simulations %}
+          <tr>
+            <th scope="row"><a href="/results/{{ run.id }}">#{{ run.id }}</a></th>
+            <td class="figure">{{ run.created_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
+            <td class="num">${{ "%.2f"|format(run.capital) }}</td>
+            <td class="num">{{ "%.2f"|format(run.payout_ratio * 100) }}%</td>
+            <td class="num">${{ "%.2f"|format(run.second_entry) }}</td>
+            <td class="num">{{ run.losses_survived }}</td>
+            <td>
+              {% if run.wall_hit %}
+                <span class="outcome-wall">
+                  wall at <span class="figure">${{ "%.2f"|format(run.wall_required_stake) }}</span>,
+                  <span class="figure">${{ "%.2f"|format(run.wall_balance_available) }}</span> left
+                </span>
+              {% else %}
+                <span class="outcome-clear">no wall within the cap</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="actions">
+    <a class="button" href="/simulator">Run another</a>
+    <form method="post" action="/history/clear">
+      <button class="button button--danger" type="submit">Clear all runs</button>
+    </form>
+  </div>
+{% else %}
+  <p class="empty">Nothing stored yet. <a href="/simulator">Run a plan</a> to fill this in.</p>
+{% endif %}
+{% endblock %}

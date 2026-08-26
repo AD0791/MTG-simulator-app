@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Run #{{ simulation.id }} — Martingale Wall Simulator{% endblock %}
+{% block description %}The full ladder for one staking plan, entry by entry, to the wall.{% endblock %}
+
+{% block content %}
+<header>
+  <h1>Run #{{ simulation.id }}</h1>
+  <p>
+    ${{ "%.2f"|format(simulation.capital) }} capital &middot;
+    {{ "%.2f"|format(simulation.payout_ratio * 100) }}% payout &middot;
+    ${{ "%.2f"|format(simulation.entry_1a) }} + ${{ "%.2f"|format(simulation.entry_1b) }} on the
+    first candle &middot; ${{ "%.2f"|format(simulation.second_entry) }} on the second
+    {%- if simulation.target_profit %} &middot; ${{ "%.2f"|format(simulation.target_profit) }} target profit{% endif %}
+  </p>
+</header>
+
+{# The verdict first. Most readers want it before the ladder. #}
+<ul class="stats">
+  <li class="stat">
+    <span class="stat__label">Losses survived</span>
+    <span class="stat__value">{{ simulation.losses_survived }}</span>
+    <span class="stat__note">consecutive losing entries the account absorbed</span>
+  </li>
+  {% if wall %}
+    <li class="stat stat--wall">
+      <span class="stat__label">Stake at the wall</span>
+      <span class="stat__value">${{ "%.2f"|format(wall.required_stake) }}</span>
+      <span class="stat__note">required to continue the recovery</span>
+    </li>
+    <li class="stat">
+      <span class="stat__label">Balance available</span>
+      <span class="stat__value">${{ "%.2f"|format(wall.balance_available) }}</span>
+      <span class="stat__note">
+        short by ${{ "%.2f"|format(wall.required_stake - wall.balance_available) }}
+      </span>
+    </li>
+  {% else %}
+    <li class="stat">
+      <span class="stat__label">Wall</span>
+      <span class="stat__value">none</span>
+      <span class="stat__note">the ladder reached its {{ simulation.max_entries }}-entry cap intact</span>
+    </li>
+    <li class="stat">
+      <span class="stat__label">Balance remaining</span>
+      <span class="stat__value">${{ "%.2f"|format(simulation.entries[-1].balance) }}</span>
+      <span class="stat__note">after the last simulated entry</span>
+    </li>
+  {% endif %}
+</ul>
+
+{% if wall %}
+  <p>
+    The plan placed {{ simulation.losses_survived }} entries and could not place the next one: it
+    needed <span class="figure">${{ "%.2f"|format(wall.required_stake) }}</span> and the account
+    held <span class="figure">${{ "%.2f"|format(wall.balance_available) }}</span>.
+  </p>
+{% else %}
+  <p>
+    No wall within {{ simulation.max_entries }} entries. Raising the cap will find one — the stakes
+    keep growing while the capital does not.
+  </p>
+{% endif %}
+
+{% include "partials/_results_table.html" %}
+
+<div class="actions">
+  <a class="button" href="/simulator">Run another</a>
+  <a class="button button--quiet" href="/history">All runs</a>
+  <form method="post" action="/results/{{ simulation.id }}/delete">
+    <button class="button button--danger" type="submit">Clear this run</button>
+  </form>
+</div>
+
+<p class="note">
+  Clearing marks the run as deleted and keeps the data. Nothing is dropped.
+</p>
+{% endblock %}

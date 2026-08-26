@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "partials/_field.html" import field %}
+
+{% block title %}Simulator — Martingale Wall Simulator{% endblock %}
+{% block description %}Enter a staking plan and see where it runs out of capital.{% endblock %}
+{% block page_class %}page--prose{% endblock %}
+
+{% block content %}
+<header>
+  <h1>Run a plan</h1>
+  <p class="lede">
+    Three numbers describe most of a plan. The rest sit under Advanced at the defaults from the
+    reference case.
+  </p>
+</header>
+
+{% if errors.get("__form__") %}
+  <p class="field__error" role="alert">{{ errors["__form__"] }}</p>
+{% endif %}
+
+<form class="form" method="post" action="/simulator" novalidate>
+  {{ field(
+      "capital", "Starting capital", values, errors,
+      help="Everything the plan has to work with. The wall arrives when the next stake exceeds what is left of it.",
+      prefix="$"
+  ) }}
+
+  {{ field(
+      "payout_percent", "Payout", values, errors,
+      help="What a winning stake returns as profit. At 92%, a winning $100 stake returns $92. Below 100%, recovery always costs more than it repays.",
+      suffix="%"
+  ) }}
+
+  {{ field(
+      "second_entry", "Second entry", values, errors,
+      help="The third entry, placed by hand on the next candle. Every computed stake after it is sized from the debt this one leaves behind.",
+      prefix="$"
+  ) }}
+
+  <details class="advanced"{% if advanced_open %} open{% endif %}>
+    <summary>Advanced</summary>
+    <div class="advanced__body">
+      {{ field("entry_1a", "First entry (1a)", values, errors,
+               help="First of the two entries placed by hand on the first candle.", prefix="$") }}
+      {{ field("entry_1b", "First entry (1b)", values, errors,
+               help="Second of the two entries on the first candle.", prefix="$") }}
+      {{ field("target_profit", "Target profit", values, errors,
+               help="Profit demanded on top of recovery, from the third entry on. Zero aims at breakeven plus rounding.", prefix="$") }}
+      {{ field("max_entries", "Maximum entries", values, errors,
+               help="Safety cap on the length of the ladder. The simulation stops here even if capital remains.",
+               inputmode="numeric") }}
+    </div>
+  </details>
+
+  <div class="actions">
+    <button class="button" type="submit">Find the wall</button>
+    <a class="button button--quiet" href="/history">Past runs</a>
+  </div>
+</form>
+
+<p class="note">
+  Every entry is assumed to lose. The result is a worst case, not a forecast.
+</p>
+{% endblock %}

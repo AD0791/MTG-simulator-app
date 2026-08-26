@@ -1,0 +1,533 @@
+/* ---------------------------------------------------------------------------
+   Martingale Wall Simulator — hand-authored, no framework, no CDN.
+
+   Every colour, space, and type decision resolves to a custom property below.
+   A hard-coded value anywhere else in this file is a bug.
+   --------------------------------------------------------------------------- */
+
+:root {
+  /* surfaces, darkest to lightest */
+  --bg:        #0a0c10;
+  --surface:   #12151c;
+  --raised:    #1a1f29;
+  --border:    #262d3a;
+
+  /* text */
+  --text:      #e6e9ef;
+  --muted:     #8b95a7;
+
+  /* informational accent — links, focus, affordances. Never risk. */
+  --accent:    #4d9fff;
+  --accent-dim:#1c3f6b;
+
+  /* the escalation ramp */
+  --calm:      #3fb950;
+  --caution:   #d29922;
+  --elevated:  #f0883e;
+  --danger:    #f85149;
+
+  /* type */
+  --font-prose:  ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-figure: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", monospace;
+
+  /* spacing — 4px base */
+  --s1: .25rem; --s2: .5rem;  --s3: .75rem; --s4: 1rem;
+  --s6: 1.5rem; --s8: 2rem;   --s12: 3rem;  --s16: 4rem;
+
+  --radius: 6px;
+  --measure: 68ch;
+}
+
+/* --- reset-ish --------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-prose);
+  font-size: 1rem;
+  line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+}
+
+h1, h2, h3 { line-height: 1.25; font-weight: 600; margin: 0; }
+p, ul, ol { margin: 0 0 var(--s4); }
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Colour is never the only signal, and nothing here animates a result. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  left: var(--s4); top: -3rem;
+  padding: var(--s2) var(--s4);
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  z-index: 10;
+}
+.skip-link:focus { top: var(--s2); }
+
+/* --- figures ----------------------------------------------------------- */
+
+/* Every number on the site. Without tabular numerals a column of currency
+   values is visibly ragged. */
+.figure, .num, .stat__value, td.num, th.num {
+  font-family: var(--font-figure);
+  font-variant-numeric: tabular-nums;
+}
+td.num, th.num, .num { text-align: right; }
+
+/* --- layout ------------------------------------------------------------ */
+
+.page {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--s8) var(--s4) var(--s16);
+}
+.page--prose { max-width: calc(var(--measure) + var(--s8) * 2); }
+
+.page > header { margin-bottom: var(--s8); }
+
+h1 { font-size: 2rem; }
+.page > header p {
+  color: var(--muted);
+  max-width: var(--measure);
+  margin-top: var(--s2);
+}
+
+section { max-width: var(--measure); }
+section h2 {
+  font-size: 1.35rem;
+  margin-top: var(--s12);
+  margin-bottom: var(--s4);
+}
+section h3 {
+  font-size: 1.05rem;
+  margin-top: var(--s6);
+  margin-bottom: var(--s2);
+}
+
+.lede { font-size: 1.1rem; }
+
+/* --- nav --------------------------------------------------------------- */
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.nav__brand {
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  letter-spacing: .01em;
+}
+.nav__list {
+  display: flex;
+  gap: var(--s1);
+  list-style: none;
+  margin: 0; padding: 0;
+}
+.nav__list a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--s3);
+  border-radius: var(--radius);
+  color: var(--muted);
+  text-decoration: none;
+}
+.nav__list a:hover { color: var(--text); background: var(--raised); }
+
+/* Current page is marked from the attribute the template already sets, so no
+   separate class can drift out of sync with it. */
+.nav__list a[aria-current="page"] {
+  color: var(--text);
+  background: var(--raised);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* --- callouts ---------------------------------------------------------- */
+
+.callout {
+  margin: var(--s6) 0;
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.callout > :last-child { margin-bottom: 0; }
+.callout dt { font-weight: 600; margin-top: var(--s3); }
+.callout dt:first-of-type { margin-top: 0; }
+.callout dd { margin: 0 0 var(--s2); color: var(--muted); }
+
+.note {
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+/* --- FAQ --------------------------------------------------------------- */
+
+.faq details {
+  border-bottom: 1px solid var(--border);
+}
+.faq summary {
+  cursor: pointer;
+  padding: var(--s4) 0;
+  font-weight: 600;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+.faq summary::marker { color: var(--accent); }
+.faq details > :not(summary) { padding-left: var(--s6); }
+
+/* --- forms ------------------------------------------------------------- */
+
+.form { max-width: var(--measure); }
+
+.field { margin-bottom: var(--s6); }
+.field__label {
+  display: block;
+  font-size: .8rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: var(--s2);
+}
+.field__control {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.field__control:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.field__affix {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s3);
+  background: var(--raised);
+  color: var(--text);
+  font-family: var(--font-figure);
+  font-size: .9rem;
+  border-right: 1px solid var(--border);
+}
+.field__affix--suffix { border-right: 0; border-left: 1px solid var(--border); }
+.field input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-figure);
+  font-variant-numeric: tabular-nums;
+  font-size: 1rem;
+}
+.field input:focus { outline: none; }
+.field__help {
+  margin: var(--s2) 0 0;
+  font-size: .85rem;
+  color: var(--muted);
+}
+.field__error {
+  margin: var(--s2) 0 0;
+  font-size: .85rem;
+  color: var(--danger);
+  font-weight: 600;
+}
+.field--invalid .field__control { border-color: var(--danger); }
+
+.advanced {
+  margin: var(--s8) 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.advanced > summary {
+  cursor: pointer;
+  padding: var(--s3) var(--s4);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-weight: 600;
+}
+.advanced__body { padding: 0 var(--s4) var(--s2); }
+.advanced__body .field:last-child { margin-bottom: var(--s4); }
+
+/* --- buttons ----------------------------------------------------------- */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: 0 var(--s6);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-dim);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.button:hover { background: var(--accent); color: var(--bg); }
+
+.button--quiet {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+.button--quiet:hover { background: var(--raised); color: var(--text); }
+
+/* Outlined, never solid: a solid red button invites the misclick it exists to
+   prevent. */
+.button--danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.button--danger:hover { background: var(--danger); color: var(--bg); }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-top: var(--s8);
+}
+
+/* --- summary strip ----------------------------------------------------- */
+
+.stats {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: 1fr;
+  margin-bottom: var(--s8);
+  padding: 0;
+  list-style: none;
+}
+.stat {
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.stat__label {
+  display: block;
+  font-size: .8rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.stat__value {
+  display: block;
+  margin-top: var(--s1);
+  font-size: 1.6rem;
+  line-height: 1.2;
+}
+.stat--wall .stat__value { color: var(--danger); }
+.stat__note { display: block; font-size: .85rem; color: var(--muted); }
+
+/* --- the ladder -------------------------------------------------------- */
+
+/* Below the first breakpoint the table scrolls inside its own container, with
+   the entry column pinned, rather than widening the page. */
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ladder {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .9rem;
+}
+.ladder th, .ladder td {
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.ladder thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  text-align: left;
+}
+.ladder thead th.num { text-align: right; }
+.ladder tbody tr:nth-child(even) { background: rgb(255 255 255 / 2%); }
+
+.ladder .entry {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  font-family: var(--font-figure);
+  font-weight: 600;
+}
+.ladder tbody tr:nth-child(even) .entry { background: var(--raised); }
+
+/* The ramp: a left border plus the stake cell's colour. Whole-row tints across
+   four bands turn the table into a heat map and destroy legibility. */
+.ladder tbody tr { border-left: 3px solid transparent; }
+tr.band-calm     { border-left-color: var(--calm); }
+tr.band-caution  { border-left-color: var(--caution); }
+tr.band-elevated { border-left-color: var(--elevated); }
+tr.band-danger   { border-left-color: var(--danger); }
+
+tr.band-calm     td.stake { color: var(--calm); }
+tr.band-caution  td.stake { color: var(--caution); }
+tr.band-elevated td.stake { color: var(--elevated); }
+tr.band-danger   td.stake { color: var(--danger); }
+
+/* The share is printed, so the ramp survives greyscale and colour blindness. */
+td.share { color: var(--muted); }
+
+/* The wall is not a data row and must not read as one. */
+.ladder .wall-row {
+  border-left: 3px solid var(--danger);
+  background: rgb(248 81 73 / 8%);
+}
+.ladder .wall-row td {
+  border-bottom: 0;
+  padding-top: var(--s4);
+  padding-bottom: var(--s4);
+  white-space: normal;
+}
+.ladder .wall-row .entry {
+  color: var(--danger);
+  letter-spacing: .08em;
+  background: transparent;
+}
+.wall-reason { color: var(--danger); font-weight: 600; }
+.wall-reason .figure { font-weight: 600; }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s4);
+  margin: var(--s4) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: .85rem;
+  color: var(--muted);
+}
+.legend li { display: flex; align-items: center; gap: var(--s2); }
+.legend .swatch {
+  width: 3px;
+  height: 1.1em;
+  border-radius: 2px;
+  background: currentColor;
+}
+.legend .swatch--calm     { color: var(--calm); }
+.legend .swatch--caution  { color: var(--caution); }
+.legend .swatch--elevated { color: var(--elevated); }
+.legend .swatch--danger   { color: var(--danger); }
+
+/* --- history ----------------------------------------------------------- */
+
+.runs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .9rem;
+}
+.runs th, .runs td {
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.runs thead th {
+  background: var(--raised);
+  color: var(--muted);
+  font-size: .75rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.runs thead th.num { text-align: right; }
+.runs tbody tr:nth-child(even) { background: rgb(255 255 255 / 2%); }
+.runs .outcome-wall { color: var(--danger); }
+.runs .outcome-clear { color: var(--calm); }
+
+.empty {
+  padding: var(--s12) var(--s4);
+  text-align: center;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+/* --- worked example on the theory page --------------------------------- */
+
+.example {
+  margin: var(--s6) 0;
+  font-size: .9rem;
+}
+.example .table-scroll { background: var(--surface); }
+
+/* --- footer ------------------------------------------------------------ */
+
+.footer {
+  border-top: 1px solid var(--border);
+  padding: var(--s6) var(--s4);
+  color: var(--muted);
+  font-size: .85rem;
+}
+.footer p { max-width: var(--measure); margin: 0 auto; }
+
+/* --- breakpoints (two, deliberately) ----------------------------------- */
+
+@media (min-width: 48rem) {
+  .page { padding: var(--s12) var(--s8) var(--s16); }
+  .stats { grid-template-columns: repeat(3, 1fr); }
+  .form--split { max-width: none; }
+  .ladder .entry { position: static; }
+}
+
+@media (min-width: 72rem) {
+  h1 { font-size: 2.25rem; }
+  .stats { gap: var(--s4); }
+}

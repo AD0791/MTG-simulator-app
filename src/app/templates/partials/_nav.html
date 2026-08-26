@@ -1,0 +1,10 @@
+<nav class="nav" aria-label="Primary">
+  <a class="nav__brand" href="/">Martingale Wall</a>
+  <ul class="nav__list">
+    {% for path, label in [("/", "Theory"), ("/simulator", "Simulator"), ("/history", "History")] %}
+      <li>
+        <a href="{{ path }}"{% if request.url.path == path %} aria-current="page"{% endif %}>{{ label }}</a>
+      </li>
+    {% endfor %}
+  </ul>
+</nav>

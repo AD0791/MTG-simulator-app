@@ -1,0 +1,29 @@
+services:
+  api:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # The database lives on a volume rather than in the container's writable
+      # layer, so it survives a rebuild. This is the container's path for the
+      # same DATABASE_URL setting `.env.example` documents.
+      DATABASE_URL: sqlite:////app/data/app.db
+    volumes:
+      # Source only — mounting the whole project would shadow /app/.venv with a
+      # host directory built for a different platform.
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./alembic:/app/alembic
+      - appdata:/app/data
+    # Alembic owns the schema in every environment, so the dev service brings it
+    # to head before serving. Nothing creates tables at application startup.
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+volumes:
+  appdata:

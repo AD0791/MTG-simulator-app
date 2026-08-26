@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}The wall — Martingale Wall Simulator{% endblock %}
+{% block description %}How a recovery staking plan escalates, and why it meets a wall below a 100% payout.{% endblock %}
+{% block page_class %}page--prose{% endblock %}
+
+{% block content %}
+<header>
+  <h1>Where the plan stops</h1>
+  <p class="lede">
+    This tool answers one question. If you follow a staking plan and keep losing, how far can you
+    go before the account can no longer cover the next required stake? That breaking point is the
+    <strong>wall</strong>, and finding it is the whole purpose of the tool.
+  </p>
+</header>
+
+<section>
+  <h2>The payout mechanic</h2>
+  <p>
+    On a binary-option-style trade, two things can happen. The prediction is right and a fixed
+    payout is returned, or it is wrong and the stake is lost. The payout is a proportion of the
+    stake, and it is below 100%.
+  </p>
+  <p>
+    At a 92% payout, a winning $100 stake returns $92 profit. A losing $100 stake costs the full
+    $100. Winning and losing are not symmetrical, and that asymmetry is where the wall comes from.
+  </p>
+
+  <div class="callout">
+    <dl>
+      <dt>Payout ratio</dt>
+      <dd>
+        The proportion of a stake returned as profit on a win. 0.92 means 92%. Payout ratios vary
+        by asset.
+      </dd>
+      <dt>Recovery stake</dt>
+      <dd>The amount that, if it won, would recover every loss in the run so far.</dd>
+      <dt>The wall</dt>
+      <dd>
+        The point at which the next required stake exceeds the money remaining, so the plan cannot
+        continue.
+      </dd>
+    </dl>
+  </div>
+</section>
+
+<section>
+  <h2>Why recovery staking meets a wall</h2>
+  <p>
+    To recover a run of losses with a single win, the win must return at least what the run cost.
+    Since a win returns only a fraction of the stake, the stake has to be larger than the losses it
+    is meant to erase — divided by the payout ratio:
+  </p>
+  <p class="figure">stake = ceil( (cumulative loss + target profit) &divide; payout ratio )</p>
+  <p>
+    At a 92% payout, that division multiplies the required stake by about 1.087 each time, on top
+    of a cumulative loss that is itself growing. The stake does not grow with the streak; it grows
+    with the debt the streak has already created, which is why it accelerates.
+  </p>
+  <p>
+    No staking pattern escapes this. Not flat, not Fibonacci, not doubling, not a debt-driven
+    recovery formula. Below a 100% payout the arithmetic is the same for all of them; only the
+    location of the wall changes.
+  </p>
+</section>
+
+<section>
+  <h2>The plan this tool models</h2>
+  <ol>
+    <li><strong>Entry 1a and 1b</strong> — two entries placed by hand on the first candle.</li>
+    <li><strong>Second entry</strong> — a third entry on the next candle, also chosen by hand.</li>
+    <li>
+      <strong>From the third entry on</strong> — the stake is computed from the accumulated debt
+      using the formula above, rounded up to the next whole dollar. It is the smallest whole-dollar
+      stake that would recover the entire streak if it won.
+    </li>
+  </ol>
+  <p>
+    The simulation assumes the worst case throughout: <strong>every entry loses</strong>. It stops
+    the instant the next required stake is larger than the balance.
+  </p>
+</section>
+
+<section>
+  <h2>A worked example</h2>
+  <p>
+    ${{ "%.0f"|format(config.capital) }} of capital, ${{ "%.0f"|format(config.entry_1a) }} and
+    ${{ "%.0f"|format(config.entry_1b) }} on the first candle,
+    ${{ "%.0f"|format(config.second_entry) }} on the second, at a
+    {{ "%.0f"|format(config.payout_ratio * 100) }}% payout. This table is produced by the simulator
+    itself, not written by hand.
+  </p>
+
+  <div class="example">
+    {% include "partials/_results_table.html" %}
+  </div>
+
+  <p>
+    The first five entries each risk under 7% of what remains, which looks harmless. The sixth
+    risks 15%. The seventh risks 38%. The eighth needs more than the account holds, and the plan
+    stops. Nothing warns the trader in advance, which is exactly why the danger is worth measuring:
+    it is invisible until the entry before last.
+  </p>
+</section>
+
+<section>
+  <h2>What this tool does not do</h2>
+  <p>
+    It does not estimate how likely a losing run is, because that depends on a trading strategy
+    rather than on a staking plan. It does not predict markets. It does not claim the plan it
+    models is profitable, and nothing here should be read as a recommendation to use it.
+  </p>
+  <p>
+    It reports one thing: given these numbers, the account breaks here.
+  </p>
+  <p class="actions">
+    <a class="button" href="/simulator">Run your own numbers</a>
+  </p>
+</section>
+
+<section class="faq">
+  <h2>Reading the results</h2>
+
+  <details>
+    <summary>What exactly is the wall?</summary>
+    <p>
+      It is the first entry the account cannot place. The simulator computes the stake that entry
+      would require, compares it with the balance remaining, and stops when the stake is larger.
+      The results page shows both numbers: what was needed, and what was left.
+    </p>
+  </details>
+
+  <details>
+    <summary>Why do the stakes escalate so quickly?</summary>
+    <p>
+      Each computed stake is sized to recover the entire streak so far, and the streak so far
+      includes every previous recovery stake. The debt compounds, and dividing by a payout below
+      1 enlarges each step further. Growth is geometric, not linear.
+    </p>
+  </details>
+
+  <details>
+    <summary>What does "if it had won" mean?</summary>
+    <p>
+      It is what the balance would have been had that specific entry won instead of lost — the
+      losses up to that point, plus the payout on that stake. From the third entry on it lands at
+      or just above the starting capital, because that is precisely what the stake was sized to do.
+      It is shown to make the trade-off visible: the plan aims at recovering to breakeven, and it
+      risks the account to do it.
+    </p>
+  </details>
+
+  <details>
+    <summary>Why assume every trade loses?</summary>
+    <p>
+      Because the question is what the account can absorb, not what is likely. A worst case is a
+      planning number: it holds regardless of the win rate. Mixing in a probability would produce
+      an average that no individual losing run is obliged to respect.
+    </p>
+  </details>
+
+  <details>
+    <summary>Does a higher payout remove the wall?</summary>
+    <p>
+      It moves it, and does not remove it. A higher payout makes each recovery stake smaller, so
+      the same capital survives more entries. But as long as the payout is below 100%, each
+      recovery stake still exceeds the losses it repays, so the escalation continues and the
+      capital is still finite. Try it in the simulator: raising the payout adds entries to the
+      ladder and never removes the last row.
+    </p>
+  </details>
+
+  <details>
+    <summary>What does "share of balance" mean in the table?</summary>
+    <p>
+      The stake divided by the balance available immediately before that entry. It is shown instead
+      of a share of starting capital because the account is already depleted by then, and a share
+      of the original figure would understate how much is at risk.
+    </p>
+  </details>
+
+  <details>
+    <summary>What is target profit?</summary>
+    <p>
+      An amount demanded on top of recovery, from the third entry onward. At zero the plan aims at
+      breakeven plus rounding. Raising it enlarges every computed stake and brings the wall closer.
+    </p>
+  </details>
+</section>
+{% endblock %}

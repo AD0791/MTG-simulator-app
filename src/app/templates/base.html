@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Martingale Wall Simulator{% endblock %}</title>
+  <meta name="description" content="{% block description %}Finds the entry at which a staking plan can no longer fund its next stake.{% endblock %}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  {% include "partials/_nav.html" %}
+
+  <main id="main" class="page {% block page_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <p>
+      A deterministic worst-case simulator. It assumes every entry loses and reports where the
+      account can no longer place the next one. It does not model win probability, predict
+      markets, or suggest that the plan it models is profitable.
+    </p>
+  </footer>
+</body>
+</html>

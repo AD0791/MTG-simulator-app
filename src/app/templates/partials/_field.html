@@ -1,0 +1,31 @@
+{#
+  One markup contract for all seven inputs. Duplicating field markup is how
+  error display drifts between fields.
+
+  The control is `type="text"` with a numeric `inputmode` rather than
+  `type="number"`: a number input silently discards a value it cannot parse, and
+  a rejected submission has to come back with exactly what the reader typed.
+  Validation is the server's job either way.
+#}
+{% macro field(name, label, values, errors, help="", prefix="", suffix="", inputmode="decimal") %}
+  {% set value = values.get(name, "") %}
+  {% set error = errors.get(name) %}
+  <div class="field{% if error %} field--invalid{% endif %}">
+    <label class="field__label" for="{{ name }}">{{ label }}</label>
+    <div class="field__control">
+      {% if prefix %}<span class="field__affix" aria-hidden="true">{{ prefix }}</span>{% endif %}
+      <input
+        id="{{ name }}"
+        name="{{ name }}"
+        type="text"
+        inputmode="{{ inputmode }}"
+        autocomplete="off"
+        value="{{ value }}"
+        {% if error %}aria-invalid="true"{% endif %}
+        aria-describedby="{% if error %}{{ name }}-error {% endif %}{{ name }}-help">
+      {% if suffix %}<span class="field__affix field__affix--suffix" aria-hidden="true">{{ suffix }}</span>{% endif %}
+    </div>
+    {% if error %}<p class="field__error" id="{{ name }}-error">{{ error }}</p>{% endif %}
+    <p class="field__help" id="{{ name }}-help">{{ help }}</p>
+  </div>
+{% endmacro %}

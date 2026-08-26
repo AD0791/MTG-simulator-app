@@ -9,8 +9,8 @@
 <header>
   <h1>Run a plan</h1>
   <p class="lede">
-    Three numbers describe most of a plan. The rest sit under Advanced at the defaults from the
-    reference case.
+    Capital, payout, and the two opening entries describe most of a plan. The rest sit under
+    Advanced at the defaults from the reference case.
   </p>
 </header>
 
@@ -31,21 +31,18 @@
       suffix="%"
   ) }}
 
-  {{ field(
-      "second_entry", "Second entry", values, errors,
-      help="The third entry, placed by hand on the next candle. Every computed stake after it is sized from the debt this one leaves behind.",
-      prefix="$"
-  ) }}
+  {{ field("entry_1a", "First entry (1a)", values, errors,
+           help="First of the two entries placed by hand on the first candle. Every computed stake from the second entry on is sized from the debt these two leave behind.",
+           prefix="$") }}
+
+  {{ field("entry_1b", "First entry (1b)", values, errors,
+           help="Second of the two entries on the first candle.", prefix="$") }}
 
   <details class="advanced"{% if advanced_open %} open{% endif %}>
     <summary>Advanced</summary>
     <div class="advanced__body">
-      {{ field("entry_1a", "First entry (1a)", values, errors,
-               help="First of the two entries placed by hand on the first candle.", prefix="$") }}
-      {{ field("entry_1b", "First entry (1b)", values, errors,
-               help="Second of the two entries on the first candle.", prefix="$") }}
       {{ field("target_profit", "Target profit", values, errors,
-               help="Profit demanded on top of recovery, from the third entry on. Zero aims at breakeven plus rounding.", prefix="$") }}
+               help="Profit demanded on top of recovery, from the second entry on. Zero aims at breakeven plus rounding.", prefix="$") }}
       {{ field("max_entries", "Maximum entries", values, errors,
                help="Safety cap on the length of the ladder. The simulation stops here even if capital remains.",
                inputmode="numeric") }}

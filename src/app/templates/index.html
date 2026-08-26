@@ -68,9 +68,8 @@
   <h2>The plan this tool models</h2>
   <ol>
     <li><strong>Entry 1a and 1b</strong> — two entries placed by hand on the first candle.</li>
-    <li><strong>Second entry</strong> — a third entry on the next candle, also chosen by hand.</li>
     <li>
-      <strong>From the third entry on</strong> — the stake is computed from the accumulated debt
+      <strong>From the second entry on</strong> — the stake is computed from the accumulated debt
       using the formula above, rounded up to the next whole dollar. It is the smallest whole-dollar
       stake that would recover the entire streak if it won.
     </li>
@@ -85,8 +84,7 @@
   <h2>A worked example</h2>
   <p>
     ${{ "%.0f"|format(config.capital) }} of capital, ${{ "%.0f"|format(config.entry_1a) }} and
-    ${{ "%.0f"|format(config.entry_1b) }} on the first candle,
-    ${{ "%.0f"|format(config.second_entry) }} on the second, at a
+    ${{ "%.0f"|format(config.entry_1b) }} on the first candle, at a
     {{ "%.0f"|format(config.payout_ratio * 100) }}% payout. This table is produced by the simulator
     itself, not written by hand.
   </p>
@@ -96,10 +94,11 @@
   </div>
 
   <p>
-    The first five entries each risk under 7% of what remains, which looks harmless. The sixth
-    risks 15%. The seventh risks 38%. The eighth needs more than the account holds, and the plan
-    stops. Nothing warns the trader in advance, which is exactly why the danger is worth measuring:
-    it is invisible until the entry before last.
+    The first five entries each risk 5% or less of what remains, which looks harmless. The sixth
+    risks 11%. The seventh risks 26%. The eighth risks 73% — the ladder's only entry in the danger
+    band. The account cannot cover a ninth: it would need $910 and only $163 is left, and the plan
+    stops there. Nothing warns the trader in advance, which is exactly why the danger is worth
+    measuring: it is invisible until the entry before last.
   </p>
 </section>
 
@@ -143,7 +142,7 @@
     <summary>What does "if it had won" mean?</summary>
     <p>
       It is what the balance would have been had that specific entry won instead of lost — the
-      losses up to that point, plus the payout on that stake. From the third entry on it lands at
+      losses up to that point, plus the payout on that stake. From the second entry on it lands at
       or just above the starting capital, because that is precisely what the stake was sized to do.
       It is shown to make the trade-off visible: the plan aims at recovering to breakeven, and it
       risks the account to do it.
@@ -182,7 +181,7 @@
   <details>
     <summary>What is target profit?</summary>
     <p>
-      An amount demanded on top of recovery, from the third entry onward. At zero the plan aims at
+      An amount demanded on top of recovery, from the second entry onward. At zero the plan aims at
       breakeven plus rounding. Raising it enlarges every computed stake and brings the wall closer.
     </p>
   </details>

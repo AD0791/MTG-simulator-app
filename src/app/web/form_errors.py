@@ -11,8 +11,8 @@ from collections.abc import Mapping
 from pydantic import ValidationError
 
 # The domain names the field it rejected, except for the one message that covers
-# all three manual entries at once.
-_ENTRY_FIELDS = ("entry_1a", "entry_1b", "second_entry")
+# both manual entries at once.
+_ENTRY_FIELDS = ("entry_1a", "entry_1b")
 
 # The form asks for a payout percentage; the domain rejects a ratio. Same single
 # check, restated in the units the reader typed.
@@ -54,7 +54,7 @@ def from_domain(exc: ValueError, submitted: Mapping[str, str]) -> dict[str, str]
 
 
 def _offending_entry(submitted: Mapping[str, str]) -> str:
-    """Which of the three manual entries the domain was objecting to.
+    """Which of the two manual entries the domain was objecting to.
 
     The domain rejects them with one shared message, so the field is identified
     by looking at what was submitted — not by re-checking the rule.
@@ -65,4 +65,4 @@ def _offending_entry(submitted: Mapping[str, str]) -> str:
                 return field
         except ValueError:
             continue
-    return "second_entry"
+    return "entry_1a"

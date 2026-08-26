@@ -26,8 +26,7 @@ seeing exactly how and where such a strategy fails.
 ## The staking plan being modelled
 
 1. **Entry 1a** and **1b** — two entries placed by hand on the first candle.
-2. **Second entry** — a third entry on the next candle, also chosen by hand.
-3. **From the third entry on**, the stake is computed from accumulated debt:
+2. **From the second entry on**, the stake is computed from accumulated debt:
 
    ```
    stake = ceil( (cumulative_loss + target_profit) / payout_ratio )
@@ -37,20 +36,27 @@ seeing exactly how and where such a strategy fails.
 
 The simulation stops the instant the next required stake exceeds the remaining balance.
 
-With $1000 of capital, $5 + $5 on the first candle, $18 on the second, and a 92% payout, the wall
-arrives on the seventh entry: it needs **$589** and only **$459** remains.
+With $1000 of capital, $5 + $5 on the first candle, and a 92% payout, the wall arrives after eight
+entries: it needs **$910** and only **$163** remains.
 
 ## Pages
 
 | Path | What it does |
 |---|---|
 | `/` | The theory — how the payout mechanic works, why recovery staking hits a wall, and a FAQ for reading the results table |
-| `/simulator` | Three inputs — starting capital, payout %, second entry — with the remaining parameters under **Advanced** |
+| `/simulator` | Capital, payout %, and the two opening entries — with the remaining parameters under **Advanced** |
 | `/results/{id}` | The full ladder, entry by entry, to the wall |
 | `/history` | Past runs, revisitable and clearable |
 
 A versioned JSON API is available alongside the pages at `/api/v1` — `POST /api/v1/simulations`
 runs and stores a simulation, `GET`/`DELETE` read and soft-delete them.
+
+**A note on the one v1 contract break so far.** Dropping the hand-supplied second entry (above)
+removed `second_entry` from `SimulationSummary`, the v1 response shape, without cutting a v2. That
+is normally what forces a new API version; it was done anyway because the API had no external
+consumers yet, and a second router set was not worth maintaining over a prototype contract. The
+database column was kept, made nullable, and stopped being written — so runs recorded before this
+change keep their stored value even though no response exposes it any more.
 
 ## Running in development
 

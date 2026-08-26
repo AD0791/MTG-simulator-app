@@ -28,7 +28,6 @@ def run_and_store(session: Session, payload: SimulationCreate) -> Simulation:
         capital=config.capital,
         entry_1a=config.entry_1a,
         entry_1b=config.entry_1b,
-        second_entry=config.second_entry,
         payout_ratio=config.payout_ratio,
         target_profit=config.target_profit,
         max_entries=config.max_entries,

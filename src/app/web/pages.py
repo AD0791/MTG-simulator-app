@@ -19,10 +19,10 @@ from ..web.templates import templates
 
 router = APIRouter(include_in_schema=False)
 
-DEFAULT_FORM = RawSimulationForm(capital="1000", payout_percent="92", second_entry="18")
+DEFAULT_FORM = RawSimulationForm(capital="1000", payout_percent="92", entry_1a="5", entry_1b="5")
 
-# The three inputs shown up front; everything else lives under Advanced.
-PRIMARY_FIELDS = {"capital", "payout_percent", "second_entry"}
+# The four inputs shown up front; everything else lives under Advanced.
+PRIMARY_FIELDS = {"capital", "payout_percent", "entry_1a", "entry_1b"}
 
 
 def _see_other(path: str) -> RedirectResponse:

@@ -3,11 +3,11 @@ staking_simulator.py
 
 Order-sizing simulator for binary-option-style trading (Pocket Option OTC).
 
-You specify the first three entries by hand (entry_1a, entry_1b on candle 1,
-second_entry on candle 2). From candle 3 onward, the stake is computed
-automatically from the debt: stake = ceil((cumulative_loss + target_profit)
-/ payout_ratio), continuing until the required stake exceeds the remaining
-balance -- the martingale wall.
+You specify the first two entries by hand (entry_1a, entry_1b on candle 1).
+From candle 2 onward, the stake is computed automatically from the debt:
+stake = ceil((cumulative_loss + target_profit) / payout_ratio), continuing
+until the required stake exceeds the remaining balance -- the martingale
+wall.
 
 StakingTable.build(config) is the entry point: pass a StakingConfig, get
 back a fully populated StakingTable. Everything is a dataclass DTO, so the
@@ -25,16 +25,15 @@ class StakingConfig:
     capital: float = 1000.0
     entry_1a: float = 5.0
     entry_1b: float = 5.0
-    second_entry: float = 18.0
     payout_ratio: float = 0.92       # 0.92 = 92% payout
-    target_profit: float = 0.0       # profit demanded on top of recovery, from entry 3 onward
+    target_profit: float = 0.0       # profit demanded on top of recovery, from entry 2 onward
     max_entries: int = 50            # safety cap
 
     def __post_init__(self):
         if self.capital <= 0:
             raise ValueError("capital must be positive")
-        if self.entry_1a <= 0 or self.entry_1b <= 0 or self.second_entry <= 0:
-            raise ValueError("entry_1a, entry_1b, and second_entry must all be positive")
+        if self.entry_1a <= 0 or self.entry_1b <= 0:
+            raise ValueError("entry_1a and entry_1b must all be positive")
         if not (0 < self.payout_ratio <= 1):
             raise ValueError("payout_ratio must be between 0 and 1")
         if self.target_profit < 0:
@@ -68,7 +67,6 @@ class StakingTable:
         manual_entries = [
             ("1a", config.entry_1a),
             ("1b", config.entry_1b),
-            ("2", config.second_entry),
         ]
 
         entry_number = 0
@@ -81,7 +79,7 @@ class StakingTable:
                 label, stake, balance, cumulative_loss, entry_number
             )
 
-        candle = 3
+        candle = 2
         while entry_number < config.max_entries:
             entry_number += 1
             raw = (cumulative_loss + config.target_profit) / config.payout_ratio
@@ -138,7 +136,7 @@ class StakingTable:
 
 
 if __name__ == "__main__":
-    config = StakingConfig(capital=1000.0, entry_1a=5.0, entry_1b=5.0, second_entry=18.0)
+    config = StakingConfig(capital=1000.0, entry_1a=5.0, entry_1b=5.0)
     table = StakingTable.build(config)
     table.print_table()
 

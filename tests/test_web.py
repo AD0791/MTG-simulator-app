@@ -23,8 +23,8 @@ async def test_landing_page_carries_the_theory_and_the_faq(client: AsyncClient) 
     assert "Where the plan stops" in body
     assert "<details>" in body  # the FAQ is semantic, not a div with a handler
     # The worked example is produced by the simulator itself.
-    assert "589.00" in body
-    assert "459.00" in body
+    assert "910.00" in body
+    assert "163.00" in body
 
 
 async def test_simulator_shows_three_primary_inputs_and_a_collapsed_panel(
@@ -34,9 +34,9 @@ async def test_simulator_shows_three_primary_inputs_and_a_collapsed_panel(
 
     assert response.status_code == 200
     body = response.text
-    for field in ("capital", "payout_percent", "second_entry"):
+    for field in ("capital", "payout_percent", "entry_1a", "entry_1b"):
         assert f'id="{field}"' in body
-    for field in ("entry_1a", "entry_1b", "target_profit", "max_entries"):
+    for field in ("target_profit", "max_entries"):
         assert f'id="{field}"' in body
     assert '<details class="advanced">' in body  # collapsed: no `open`
 
@@ -51,8 +51,8 @@ async def test_submitting_the_reference_case_redirects_to_its_result(
 
     page = await client.get(response.headers["location"])
     assert page.status_code == 200
-    assert "589.00" in page.text
-    assert "459.00" in page.text
+    assert "910.00" in page.text
+    assert "163.00" in page.text
     assert "WALL" in page.text
 
 
@@ -60,7 +60,7 @@ async def test_a_rejected_plan_keeps_its_values_and_names_the_field(
     client: AsyncClient,
 ) -> None:
     response = await client.post(
-        "/simulator", data={**REFERENCE_FORM, "capital": "-50", "second_entry": "7"}
+        "/simulator", data={**REFERENCE_FORM, "capital": "-50", "target_profit": "7"}
     )
 
     assert response.status_code == 422

@@ -27,11 +27,11 @@ async def test_reference_case_round_trips_through_the_api(client: AsyncClient) -
     assert response.status_code == 201
     body = response.json()
     assert body["wall_hit"] is True
-    assert body["wall_required_stake"] == 589
-    assert body["wall_balance_available"] == 459.0
-    assert body["losses_survived"] == 7
-    assert len(body["entries"]) == 7
-    assert [e["label"] for e in body["entries"]] == ["1a", "1b", "2", "3", "4", "5", "6"]
+    assert body["wall_required_stake"] == 910
+    assert body["wall_balance_available"] == 163.0
+    assert body["losses_survived"] == 8
+    assert len(body["entries"]) == 8
+    assert [e["label"] for e in body["entries"]] == ["1a", "1b", "2", "3", "4", "5", "6", "7"]
 
 
 async def test_stored_run_reads_back_identically(client: AsyncClient) -> None:
@@ -66,7 +66,7 @@ async def test_impossible_payout_is_rejected_by_the_domain_seam(client: AsyncCli
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("capital", -1.0), ("second_entry", 0.0), ("target_profit", -5.0)],
+    [("capital", -1.0), ("entry_1a", 0.0), ("target_profit", -5.0)],
 )
 async def test_every_domain_rejection_reaches_the_same_seam(
     client: AsyncClient, field: str, value: float

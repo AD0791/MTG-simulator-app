@@ -23,7 +23,7 @@ class Simulation(Base, TimestampMixin):
     capital: Mapped[float]
     entry_1a: Mapped[float]
     entry_1b: Mapped[float]
-    second_entry: Mapped[float]
+    second_entry: Mapped[float | None]
     payout_ratio: Mapped[float]
     target_profit: Mapped[float]
     max_entries: Mapped[int]

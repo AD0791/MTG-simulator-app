@@ -12,7 +12,6 @@ REFERENCE = {
     "capital": 1000.0,
     "entry_1a": 5.0,
     "entry_1b": 5.0,
-    "second_entry": 18.0,
     "payout_ratio": 0.92,
     "target_profit": 0.0,
 }
@@ -21,27 +20,28 @@ REFERENCE = {
 REFERENCE_LADDER = [
     ("1a", 5.0, 5.0, 995.0),
     ("1b", 5.0, 10.0, 990.0),
-    ("2", 18.0, 28.0, 972.0),
-    ("3", 31.0, 59.0, 941.0),
-    ("4", 65.0, 124.0, 876.0),
-    ("5", 135.0, 259.0, 741.0),
-    ("6", 282.0, 541.0, 459.0),
+    ("2", 11.0, 21.0, 979.0),
+    ("3", 23.0, 44.0, 956.0),
+    ("4", 48.0, 92.0, 908.0),
+    ("5", 100.0, 192.0, 808.0),
+    ("6", 209.0, 401.0, 599.0),
+    ("7", 436.0, 837.0, 163.0),
 ]
 
 
-def test_reference_case_hits_the_wall_on_entry_seven() -> None:
+def test_reference_case_hits_the_wall_on_entry_eight() -> None:
     table = StakingTable.build(StakingConfig(**REFERENCE))
 
     assert table.wall_hit is True
-    assert table.wall_required_stake == 589
-    assert table.wall_balance_available == 459.0
-    assert table.losses_survived == 7
+    assert table.wall_required_stake == 910
+    assert table.wall_balance_available == 163.0
+    assert table.losses_survived == 8
 
 
 def test_reference_case_ladder_matches_row_for_row() -> None:
     table = StakingTable.build(StakingConfig(**REFERENCE))
 
-    assert len(table.rows) == 7
+    assert len(table.rows) == 8
     actual = [(r.label, r.stake, r.cumulative_loss, r.balance) for r in table.rows]
     assert actual == REFERENCE_LADDER
 
@@ -53,16 +53,14 @@ def test_balance_if_win_recovers_the_streak() -> None:
     first = table.rows[0]
     assert first.balance_if_win == pytest.approx(1000.0 + 5.0 * 0.92)
 
-    # From entry 3 on, the stake is sized to recover everything lost so far, so a
+    # From entry 2 on, the stake is sized to recover everything lost so far, so a
     # win lands the balance back at or just above starting capital.
-    for row in table.rows[3:]:
+    for row in table.rows[2:]:
         assert row.balance_if_win >= 1000.0
 
 
 def test_no_wall_when_capital_reaches_max_entries() -> None:
-    config = StakingConfig(
-        capital=100_000.0, entry_1a=5.0, entry_1b=5.0, second_entry=18.0, max_entries=6
-    )
+    config = StakingConfig(capital=100_000.0, entry_1a=5.0, entry_1b=5.0, max_entries=6)
     table = StakingTable.build(config)
 
     assert table.wall_hit is False
@@ -73,11 +71,14 @@ def test_no_wall_when_capital_reaches_max_entries() -> None:
 
 
 def test_higher_payout_moves_the_wall_but_does_not_remove_it() -> None:
-    better = StakingTable.build(StakingConfig(**{**REFERENCE, "payout_ratio": 0.98}))
-    baseline = StakingTable.build(StakingConfig(**REFERENCE))
+    # 0.98 does not survive a further entry beyond the reference case's 0.92 — the
+    # ladder's growth is coarse enough that not every payout increase crosses an
+    # extra whole-dollar-rounded threshold. A lower payout does, so compare down.
+    worse = StakingTable.build(StakingConfig(**{**REFERENCE, "payout_ratio": 0.70}))
+    better = StakingTable.build(StakingConfig(**REFERENCE))
 
     assert better.wall_hit is True
-    assert better.losses_survived > baseline.losses_survived
+    assert better.losses_survived > worse.losses_survived
 
 
 @pytest.mark.parametrize("capital", [0.0, -1.0])
@@ -86,7 +87,7 @@ def test_non_positive_capital_is_rejected(capital: float) -> None:
         StakingConfig(capital=capital)
 
 
-@pytest.mark.parametrize("field", ["entry_1a", "entry_1b", "second_entry"])
+@pytest.mark.parametrize("field", ["entry_1a", "entry_1b"])
 @pytest.mark.parametrize("value", [0.0, -5.0])
 def test_non_positive_entries_are_rejected(field: str, value: float) -> None:
     with pytest.raises(ValueError, match="must all be positive"):

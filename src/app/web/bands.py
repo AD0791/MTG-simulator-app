@@ -2,8 +2,8 @@
 
 Each row is banded by the share of the balance *available before that entry*
 that its stake consumes. That is the honest ratio: a share of starting capital
-understates the danger, because by the sixth entry the account is already
-depleted — a $282 stake is 28% of the original $1,000 but 38% of the $741
+understates the danger, because by the seventh entry the account is already
+depleted — a $436 stake is 43.6% of the original $1,000 but 72.8% of the $599
 actually left.
 
 The template receives a band name and the share as a number. Colour only
@@ -92,9 +92,7 @@ def wall(simulation: Simulation) -> WallRow | None:
 
 # The published reference case. The landing page renders it by running the
 # simulator, so the worked example can never drift from what the tool produces.
-REFERENCE_CONFIG = StakingConfig(
-    capital=1000.0, entry_1a=5.0, entry_1b=5.0, second_entry=18.0, payout_ratio=0.92
-)
+REFERENCE_CONFIG = StakingConfig(capital=1000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92)
 
 
 def worked_example() -> tuple[list[LadderRow], WallRow | None]:

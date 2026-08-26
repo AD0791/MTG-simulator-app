@@ -23,7 +23,6 @@ REFERENCE_BODY = {
     "capital": 1000.0,
     "entry_1a": 5.0,
     "entry_1b": 5.0,
-    "second_entry": 18.0,
     "payout_ratio": 0.92,
     "target_profit": 0.0,
 }
@@ -31,7 +30,6 @@ REFERENCE_BODY = {
 REFERENCE_FORM = {
     "capital": "1000",
     "payout_percent": "92",
-    "second_entry": "18",
     "entry_1a": "5",
     "entry_1b": "5",
     "target_profit": "0",

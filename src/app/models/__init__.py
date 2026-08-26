@@ -5,8 +5,8 @@ Alembic autogenerate inspects it — a model module that is never imported reads
 as a dropped table.
 """
 
-from app.models.base import Base, TimestampMixin, utcnow
-from app.models.simulation import Simulation, SimulationEntry
+from ..models.base import Base, TimestampMixin, utcnow
+from ..models.simulation import Simulation, SimulationEntry
 
 __all__ = [
     "Base",

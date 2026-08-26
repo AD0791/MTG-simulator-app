@@ -6,7 +6,7 @@ route decorator is the start of a service that cannot be versioned later.
 
 from fastapi import APIRouter
 
-from app.api.v1.routers import health, simulations
+from .routers import health, simulations
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(health.router, tags=["health"])

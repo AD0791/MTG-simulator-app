@@ -13,8 +13,8 @@ reinforces what the printed share already says.
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from app.domain.staking_simulator import StakingConfig, StakingTable
-from app.models import Simulation, SimulationEntry
+from ..domain.staking_simulator import StakingConfig, StakingTable
+from ..models import Simulation, SimulationEntry
 
 # Lower bound of each band, highest first.
 BANDS = (

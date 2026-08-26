@@ -12,8 +12,8 @@ route or a service that answers a user's read.
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models.base import utcnow
-from app.models.simulation import Simulation
+from ..models.base import utcnow
+from ..models.simulation import Simulation
 
 
 def live_simulations() -> Select[tuple[Simulation]]:

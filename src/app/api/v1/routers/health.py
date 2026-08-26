@@ -8,8 +8,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.config import Settings, get_settings
-from app.schemas.health import Health
+from ....config import Settings, get_settings
+from ....schemas.health import Health
 
 router = APIRouter()
 

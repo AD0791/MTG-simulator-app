@@ -12,7 +12,7 @@ from fastapi import Depends
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.config import get_settings
+from .config import get_settings
 
 
 def _connect_args(url: str) -> dict[str, Any]:

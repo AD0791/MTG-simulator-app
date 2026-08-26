@@ -1,6 +1,6 @@
 """Pydantic transport contracts."""
 
-from app.schemas.simulation import (
+from .simulation import (
     MAX_ENTRIES_CEILING,
     EntryRead,
     Problem,

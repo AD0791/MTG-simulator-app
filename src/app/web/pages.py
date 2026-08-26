@@ -11,11 +11,11 @@ from fastapi import APIRouter, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse, Response
 from pydantic import ValidationError
 
-from app.db import SessionDep
-from app.schemas import RawSimulationForm, SimulationForm
-from app.services import simulation_service
-from app.web import bands, form_errors
-from app.web.templates import templates
+from ..db import SessionDep
+from ..schemas import RawSimulationForm, SimulationForm
+from ..services import simulation_service
+from ..web import bands, form_errors
+from ..web.templates import templates
 
 router = APIRouter(include_in_schema=False)
 

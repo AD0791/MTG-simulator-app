@@ -1,5 +1,5 @@
 """The unversioned HTML surface."""
 
-from app.web.pages import router
+from .pages import router
 
 __all__ = ["router"]

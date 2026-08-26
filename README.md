@@ -56,6 +56,18 @@ runs and stores a simulation, `GET`/`DELETE` read and soft-delete them.
 
 Two supported paths. Both do everything; pick whichever you prefer.
 
+**Every command below runs from the repository root** — the directory holding `pyproject.toml`.
+Two settings are resolved relative to the working directory, not to the package: the `.env` file,
+and the `sqlite:///./app.db` path inside it. Run the server from anywhere else and both miss.
+SQLite creates an empty file rather than reporting a missing one, so the app starts cleanly,
+connects to a database with no tables, and every page that reads history fails with
+`no such table: simulations` while `app.db` sits intact in the repository root.
+
+`uv run` normally makes that impossible — from the wrong directory it finds no project and exits
+with `ModuleNotFoundError: No module named 'app'`. It only becomes silent if the virtualenv has
+been activated by hand, which lets the import resolve from anywhere. That is the practical reason
+for the rule below: **never activate the venv**; prefix with `uv run` instead.
+
 ### With uv
 
 Requires [uv](https://docs.astral.sh/uv/). Python is managed for you.

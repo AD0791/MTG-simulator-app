@@ -1,7 +1,7 @@
 """Application assembly: routers, static files, and the error seam."""
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 
@@ -9,16 +9,16 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from app.api import v1
-from app.config import get_settings
-from app.web import router as web_router
-from app.web.templates import STATIC_DIR, templates
+from .api import v1
+from .config import get_settings
+from .web import router as web_router
+from .web.templates import STATIC_DIR, templates
 
 PROBLEM_JSON = "application/problem+json"
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings = get_settings()
     # Logs go to stdout; the platform collects them. No files, no rotation.
     logging.basicConfig(level=settings.log_level, format="%(levelname)s %(name)s %(message)s")

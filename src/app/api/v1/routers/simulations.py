@@ -9,9 +9,9 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.db import SessionDep
-from app.schemas import Problem, SimulationCreate, SimulationRead, SimulationSummary
-from app.services import simulation_service
+from ....db import SessionDep
+from ....schemas import Problem, SimulationCreate, SimulationRead, SimulationSummary
+from ....services import simulation_service
 
 router = APIRouter(prefix="/simulations")
 

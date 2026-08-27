@@ -178,7 +178,7 @@ def results(request: Request, simulation_id: int, session: SessionDep) -> Respon
         "results.html",
         {
             "simulation": simulation,
-            "ladder": bands.ladder(simulation.entries),
+            "ladder": bands.ladder(simulation.entries, simulation.capital),
             "wall": bands.wall(simulation),
             "strategy_label": bands.STRATEGY_LABELS.get(simulation.strategy, simulation.strategy),
             "badge": bands.opener_badge(
@@ -201,7 +201,7 @@ def results_group(request: Request, run_group: uuid.UUID, session: SessionDep) -
     tables = [
         {
             "simulation": simulation,
-            "ladder": bands.ladder(simulation.entries),
+            "ladder": bands.ladder(simulation.entries, simulation.capital),
             "wall": bands.wall(simulation),
             "label": bands.STRATEGY_LABELS.get(simulation.strategy, simulation.strategy),
             "badge": bands.opener_badge(

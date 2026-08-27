@@ -16,9 +16,9 @@
         <th scope="col">Entry</th>
         <th scope="col" class="num">Stake</th>
         <th scope="col" class="num">Share of balance</th>
-        <th scope="col" class="num">Cumulative loss</th>
+        <th scope="col" class="num" title="Cumulative loss">Cum. loss</th>
         <th scope="col" class="num">Balance after</th>
-        <th scope="col" class="num">If it had won</th>
+        <th scope="col" class="num" title="If it had won">If won</th>
       </tr>
     </thead>
     <tbody>
@@ -28,7 +28,18 @@
           <td class="num stake">{{ "%.2f"|format(row.stake) }}</td>
           <td class="num share">{{ "%.1f"|format(row.share * 100) }}%</td>
           <td class="num">{{ "%.2f"|format(row.cumulative_loss) }}</td>
-          <td class="num">{{ "%.2f"|format(row.balance) }}</td>
+          <td class="num balance-cell{% if row.drawdown_band %} drawdown-{{ row.drawdown_band }}{% endif %}">
+            {{- "%.2f"|format(row.balance) }}
+            {%- if row.drawdown_band %}
+              <span class="drawdown-note">
+                {%- if row.recovery_gain is not none -%}
+                  needs +{{ "%.0f"|format(row.recovery_gain * 100) }}%
+                {%- else -%}
+                  wiped out
+                {%- endif -%}
+              </span>
+            {%- endif %}
+          </td>
           <td class="num">{{ "%.2f"|format(row.balance_if_win) }}</td>
         </tr>
       {% endfor %}
@@ -47,9 +58,18 @@
   </table>
 </div>
 
+<p class="legend__label">Stake &mdash; share of what's left</p>
 <ul class="legend">
-  <li><span class="swatch swatch--calm"></span> under 10% of the balance</li>
+  <li><span class="swatch swatch--calm"></span> under 10%</li>
   <li><span class="swatch swatch--caution"></span> 10–25%</li>
   <li><span class="swatch swatch--elevated"></span> 25–50%</li>
   <li><span class="swatch swatch--danger"></span> 50% or more</li>
+</ul>
+
+<p class="legend__label">Balance &mdash; drawdown from capital, coloured from 50% on</p>
+<ul class="legend legend--drawdown">
+  <li><span class="swatch swatch--heavy"></span> 50–65%, needs +100–186% to recover</li>
+  <li><span class="swatch swatch--severe"></span> 65–80%, needs +186–400%</li>
+  <li><span class="swatch swatch--critical"></span> 80–90%, needs +400–900%</li>
+  <li><span class="swatch swatch--terminal"></span> 90%+, needs +900% or more</li>
 </ul>

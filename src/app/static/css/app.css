@@ -20,11 +20,20 @@
   --accent:    #4d9fff;
   --accent-dim:#1c3f6b;
 
-  /* the escalation ramp */
+  /* the escalation ramp — exposure, on the stake cell */
   --calm:      #3fb950;
   --caution:   #d29922;
   --elevated:  #f0883e;
   --danger:    #f85149;
+
+  /* the drawdown ramp — a different question, on the balance cell. A
+     different hue family on purpose: never let this read as the same signal
+     as the exposure ramp above. Escalates toward a more vivid magenta rather
+     than darkening, so "terminal" stays legible as text on a dark surface. */
+  --drawdown-heavy:    #a371f7;
+  --drawdown-severe:   #c297ff;
+  --drawdown-critical: #e2a8ff;
+  --drawdown-terminal: #ff8dd1;
 
   /* type */
   --font-prose:  ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -480,10 +489,13 @@ fieldset.field > legend {
 .ladder {
   width: 100%;
   border-collapse: collapse;
-  font-size: .9rem;
+  /* Mobile-first: tight by default so six columns have a chance of staying
+     visible without a horizontal scroll; the 48rem breakpoint below restores
+     the roomier sizing once there's width to spare. */
+  font-size: .82rem;
 }
 .ladder th, .ladder td {
-  padding: var(--s3) var(--s4);
+  padding: var(--s2) var(--s3);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
@@ -493,9 +505,9 @@ fieldset.field > legend {
   z-index: 2;
   background: var(--raised);
   color: var(--muted);
-  font-size: .75rem;
+  font-size: .7rem;
   font-weight: 600;
-  letter-spacing: .04em;
+  letter-spacing: .02em;
   text-transform: uppercase;
   text-align: left;
 }
@@ -528,6 +540,29 @@ tr.band-danger   td.stake { color: var(--danger); }
 /* The share is printed, so the ramp survives greyscale and colour blindness. */
 td.share { color: var(--muted); }
 
+/* The drawdown ramp: its own cell, its own axis. An inset accent rather than
+   a border, so it never collides with the row's own exposure border, and
+   coloured text on the recovery note rather than a background fill, so
+   contrast against the cell's own zebra tint never has to be recomputed per
+   band. No band below 50% — the cell renders exactly as it always did. */
+td.balance-cell { position: relative; }
+td.drawdown-heavy    { box-shadow: inset 3px 0 0 var(--drawdown-heavy); }
+td.drawdown-severe   { box-shadow: inset 3px 0 0 var(--drawdown-severe); }
+td.drawdown-critical { box-shadow: inset 3px 0 0 var(--drawdown-critical); }
+td.drawdown-terminal { box-shadow: inset 3px 0 0 var(--drawdown-terminal); }
+
+.drawdown-note {
+  display: block;
+  margin-top: 2px;
+  font-size: .75rem;
+  font-weight: 600;
+  white-space: normal;
+}
+td.drawdown-heavy    .drawdown-note { color: var(--drawdown-heavy); }
+td.drawdown-severe   .drawdown-note { color: var(--drawdown-severe); }
+td.drawdown-critical .drawdown-note { color: var(--drawdown-critical); }
+td.drawdown-terminal .drawdown-note { color: var(--drawdown-terminal); }
+
 /* The wall is not a data row and must not read as one. */
 .ladder .wall-row {
   border-left: 3px solid var(--danger);
@@ -546,6 +581,15 @@ td.share { color: var(--muted); }
 }
 .wall-reason { color: var(--danger); font-weight: 600; }
 .wall-reason .figure { font-weight: 600; }
+
+.legend__label {
+  margin: var(--s4) 0 0;
+  font-size: .75rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.legend__label + .legend { margin-top: var(--s2); }
 
 .legend {
   display: flex;
@@ -568,6 +612,11 @@ td.share { color: var(--muted); }
 .legend .swatch--caution  { color: var(--caution); }
 .legend .swatch--elevated { color: var(--elevated); }
 .legend .swatch--danger   { color: var(--danger); }
+
+.legend--drawdown .swatch--heavy    { color: var(--drawdown-heavy); }
+.legend--drawdown .swatch--severe   { color: var(--drawdown-severe); }
+.legend--drawdown .swatch--critical { color: var(--drawdown-critical); }
+.legend--drawdown .swatch--terminal { color: var(--drawdown-terminal); }
 
 /* --- history ----------------------------------------------------------- */
 
@@ -627,6 +676,9 @@ td.share { color: var(--muted); }
   .stats { grid-template-columns: repeat(3, 1fr); }
   .form--split { max-width: none; }
   .ladder .entry { position: static; }
+  .ladder { font-size: .9rem; }
+  .ladder th, .ladder td { padding: var(--s3) var(--s4); }
+  .ladder thead th { font-size: .75rem; letter-spacing: .04em; }
 }
 
 @media (min-width: 72rem) {

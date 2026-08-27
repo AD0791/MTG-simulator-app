@@ -4,7 +4,18 @@ Flagged in the roadmap as untested since before `opener_badge` existed; adding
 real logic to the module is the moment to stop deferring it.
 """
 
-from app.web.bands import band_for, opener_badge, suggested_opener
+from types import SimpleNamespace
+
+import pytest
+
+from app.web.bands import (
+    band_for,
+    drawdown_band_for,
+    ladder,
+    opener_badge,
+    recovery_gain,
+    suggested_opener,
+)
 
 
 def test_opener_badge_with_no_target_reports_a_plain_profit() -> None:
@@ -96,3 +107,56 @@ def test_band_for_thresholds() -> None:
     assert band_for(0.49) == "elevated"
     assert band_for(0.50) == "danger"
     assert band_for(1.0) == "danger"
+
+
+def test_drawdown_band_for_is_uncoloured_below_the_fifty_percent_floor() -> None:
+    """Not "the lowest band" — actually None. Colour below 50% would be
+    crying wolf, per the roadmap's own framing."""
+    assert drawdown_band_for(0.0) is None
+    assert drawdown_band_for(0.49) is None
+
+
+def test_drawdown_band_for_thresholds() -> None:
+    assert drawdown_band_for(0.50) == "heavy"
+    assert drawdown_band_for(0.64) == "heavy"
+    assert drawdown_band_for(0.65) == "severe"
+    assert drawdown_band_for(0.79) == "severe"
+    assert drawdown_band_for(0.80) == "critical"
+    assert drawdown_band_for(0.89) == "critical"
+    assert drawdown_band_for(0.90) == "terminal"
+    assert drawdown_band_for(1.0) == "terminal"
+
+
+def test_recovery_gain_matches_the_roadmaps_worked_figures() -> None:
+    # Down 25% -> need +33%. Down 50% -> need +100%. Down 54.1% -> need +118%.
+    assert recovery_gain(0.25) == pytest.approx(1 / 3, abs=0.001)
+    assert recovery_gain(0.50) == pytest.approx(1.0)
+    assert recovery_gain(0.541) == pytest.approx(1.178, abs=0.001)
+
+
+def test_recovery_gain_is_none_at_a_full_drawdown() -> None:
+    """100% drawdown means the balance hit exactly zero — the gain needed is
+    undefined, not merely a very large number."""
+    assert recovery_gain(1.0) is None
+
+
+def test_ladder_bands_drawdown_onto_the_balance_cell() -> None:
+    entry = SimpleNamespace(
+        label="7", stake=436.0, cumulative_loss=850.0, balance=150.0, balance_if_win=1000.0
+    )
+
+    rows = ladder([entry], capital=1000.0)
+
+    assert rows[0].drawdown == pytest.approx(0.85)
+    assert rows[0].drawdown_band == "critical"
+    assert rows[0].recovery_gain == pytest.approx(850.0 / 150.0)
+
+
+def test_ladder_leaves_drawdown_band_unset_below_the_floor() -> None:
+    entry = SimpleNamespace(
+        label="1a", stake=5.0, cumulative_loss=5.0, balance=995.0, balance_if_win=1004.6
+    )
+
+    rows = ladder([entry], capital=1000.0)
+
+    assert rows[0].drawdown_band is None

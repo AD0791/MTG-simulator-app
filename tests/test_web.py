@@ -84,6 +84,12 @@ async def test_submitting_the_reference_case_redirects_to_its_result(
     assert "If both openers win" in page.text
     assert "+$9.20, balance $1009.20" in page.text
     assert "badge--short" not in page.text
+    # Entry 7's balance cell is 83.7% drawdown — critical band, not a wall row.
+    assert 'class="num balance-cell drawdown-critical"' in page.text
+    assert "needs +513%" in page.text
+    # The first several rows stay uncoloured — this fixture never spends most
+    # of the table, per the roadmap's own "calm until abruptly it isn't."
+    assert page.text.count("balance-cell drawdown-") == 1
 
 
 async def test_a_target_the_openers_cannot_meet_shows_a_shortfall_badge(

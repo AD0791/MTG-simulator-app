@@ -1,13 +1,21 @@
 """Escalation bands for the results ladder, computed server-side.
 
-Each row is banded by the share of the balance *available before that entry*
-that its stake consumes. That is the honest ratio: a share of starting capital
-understates the danger, because by the seventh entry the account is already
-depleted — a $436 stake is 43.6% of the original $1,000 but 72.8% of the $599
-actually left.
+Two independent bands, each on its own cell — never combined into one row
+tint. The stake cell is banded by **exposure**: the share of the balance
+*available before that entry* that its stake consumes. That answers "how big
+is this bet against what's left?" A share of starting capital understates the
+danger, because by the seventh entry the account is already depleted — a $436
+stake is 43.6% of the original $1,000 but 72.8% of the $599 actually left.
 
-The template receives a band name and the share as a number. Colour only
-reinforces what the printed share already says.
+The balance cell is banded by **drawdown**: `cumulative_loss / capital`, how
+much of the account is already gone. Exposure and drawdown diverge exactly
+where it matters — a row can read "elevated" on exposure while the account is
+down past half. The drawdown ramp only starts at 50%, the point where
+recovering costs more than the loss did, so a typical ladder stays uncoloured
+until abruptly, near the wall, it isn't.
+
+The template receives band names and the raw numbers. Colour only reinforces
+what the printed figures already say.
 """
 
 import math
@@ -22,6 +30,17 @@ BANDS = (
     (0.50, "danger"),
     (0.25, "elevated"),
     (0.10, "caution"),
+)
+
+# The drawdown ramp starts at 50% — below it, no band at all (the cell is
+# left uncoloured). Recovering a drawdown needs a *larger* gain than the loss
+# that caused it, so the thresholds are spaced across `gain = drawdown / (1 -
+# drawdown)`, not evenly: 50% needs +100%, 90% needs +900%.
+DRAWDOWN_BANDS = (
+    (0.90, "terminal"),
+    (0.80, "critical"),
+    (0.65, "severe"),
+    (0.50, "heavy"),
 )
 
 # Reader-facing names for the STRATEGIES keys in `domain.staking_simulator`.
@@ -39,6 +58,26 @@ def band_for(share: float) -> str:
     return "calm"
 
 
+def drawdown_band_for(drawdown: float) -> str | None:
+    """None below 50% — the cell stays uncoloured, not just "calm"; colour
+    below the floor would be crying wolf, per the roadmap's own framing."""
+    for threshold, name in DRAWDOWN_BANDS:
+        if drawdown >= threshold:
+            return name
+    return None
+
+
+def recovery_gain(drawdown: float) -> float | None:
+    """The gain required to recover a drawdown — `drawdown / (1 - drawdown)`.
+    None at a 100% drawdown (balance hit exactly zero): the ratio is
+    undefined, not merely large, and the domain's own wall check means this
+    is the only way a placed entry's drawdown ever reaches 1.0.
+    """
+    if drawdown >= 1.0:
+        return None
+    return drawdown / (1 - drawdown)
+
+
 @dataclass(frozen=True)
 class LadderRow:
     """One entry, prepared for display."""
@@ -50,6 +89,9 @@ class LadderRow:
     balance_if_win: float
     share: float
     band: str
+    drawdown: float
+    drawdown_band: str | None
+    recovery_gain: float | None
 
 
 @dataclass(frozen=True)
@@ -62,10 +104,16 @@ class WallRow:
 
 
 def _row(
-    label: str, stake: float, cumulative_loss: float, balance: float, balance_if_win: float
+    label: str,
+    stake: float,
+    cumulative_loss: float,
+    balance: float,
+    balance_if_win: float,
+    capital: float,
 ) -> LadderRow:
     balance_before = balance + stake
     share = stake / balance_before if balance_before else 1.0
+    drawdown = cumulative_loss / capital if capital else 1.0
     return LadderRow(
         label=label,
         stake=stake,
@@ -74,6 +122,9 @@ def _row(
         balance_if_win=balance_if_win,
         share=share,
         band=band_for(share),
+        drawdown=drawdown,
+        drawdown_band=drawdown_band_for(drawdown),
+        recovery_gain=recovery_gain(drawdown),
     )
 
 
@@ -87,8 +138,11 @@ def _wall(required: float | None, available: float | None) -> WallRow | None:
     )
 
 
-def ladder(entries: Sequence[SimulationEntry]) -> list[LadderRow]:
-    return [_row(e.label, e.stake, e.cumulative_loss, e.balance, e.balance_if_win) for e in entries]
+def ladder(entries: Sequence[SimulationEntry], capital: float) -> list[LadderRow]:
+    return [
+        _row(e.label, e.stake, e.cumulative_loss, e.balance, e.balance_if_win, capital)
+        for e in entries
+    ]
 
 
 def wall(simulation: Simulation) -> WallRow | None:
@@ -148,6 +202,14 @@ def worked_example(strategy: str = "adder_profit") -> tuple[list[LadderRow], Wal
     so the landing page can show more than one method side by side."""
     table = StakingTable.build(replace(REFERENCE_CONFIG, strategy=strategy))
     rows = [
-        _row(r.label, r.stake, r.cumulative_loss, r.balance, r.balance_if_win) for r in table.rows
+        _row(
+            r.label,
+            r.stake,
+            r.cumulative_loss,
+            r.balance,
+            r.balance_if_win,
+            REFERENCE_CONFIG.capital,
+        )
+        for r in table.rows
     ]
     return rows, _wall(table.wall_required_stake, table.wall_balance_available)

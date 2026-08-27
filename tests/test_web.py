@@ -56,6 +56,64 @@ async def test_simulator_pre_checks_breakeven_and_double_but_hides_profit_recove
     assert 'name="strategies" value="adder_profit"' not in body
 
 
+async def test_simulator_shows_the_opener_radio_defaulting_to_two(client: AsyncClient) -> None:
+    response = await client.get("/simulator")
+
+    body = response.text
+    assert 'name="opener_count" value="2"' in body
+    assert 'name="opener_count" value="1"' in body
+    assert 'name="opener_count" value="2" checked' in body
+
+
+async def test_a_one_entry_submission_runs_and_renders(client: AsyncClient) -> None:
+    response = await client.post(
+        "/simulator", data={**REFERENCE_FORM, "opener_count": "1", "entry_1b": ""}
+    )
+
+    assert response.status_code == 303
+    page = await client.get(response.headers["location"])
+    assert page.status_code == 200
+    assert "1002.00" in page.text
+    assert "79.00" in page.text
+    assert "If the opener wins" in page.text
+
+
+async def test_suggest_with_one_entry_fills_the_field_and_shows_the_n_equals_one_working(
+    client: AsyncClient,
+) -> None:
+    """5% of $1000 is a $50 target: ceil(50 / 0.92) = $55 with one opener."""
+    response = await client.post(
+        "/simulator",
+        data={
+            **REFERENCE_FORM,
+            "opener_count": "1",
+            "target_profit_percent": "5",
+            "action": "suggest",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'value="55"' in body
+    assert "50.00" in body and "0.92" in body and "54.3478" in body
+    assert "$55" in body
+    assert "$50.60" in body
+
+
+async def test_a_rejected_one_entry_submission_never_points_its_error_at_entry_1b(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(
+        "/simulator",
+        data={**REFERENCE_FORM, "opener_count": "1", "entry_1a": "0", "entry_1b": ""},
+    )
+
+    assert response.status_code == 422
+    body = response.text
+    assert 'id="entry_1a-error"' in body
+    assert 'id="entry_1b-error"' not in body
+
+
 async def test_submitting_with_no_strategy_checked_is_rejected(client: AsyncClient) -> None:
     """A real browser omits an unchecked checkbox from the POST entirely —
     this reproduces that, not an explicit empty value."""
@@ -136,8 +194,8 @@ async def test_suggest_action_shows_the_derivation_and_checks_all_three_strategi
     assert "51.52" in body and "1.52" in body
     assert 'value="28"' in body
     # Suggest is the one path that may pre-check every strategy the target
-    # makes distinct.
-    assert body.count("checked>") == 3
+    # makes distinct. Plus one for the default "two entries" opener radio.
+    assert body.count("checked>") == 4
 
 
 async def test_suggest_action_with_no_target_leaves_openers_unchanged(
@@ -176,7 +234,8 @@ async def test_suggest_does_not_check_strategies_when_it_cannot_derive_openers(
     assert response.status_code == 200
     body = response.text
     assert "target profit above 0% is needed" in body
-    assert body.count("checked>") == 1  # the one the reader chose, untouched
+    # The one strategy the reader chose, untouched, plus the default opener radio.
+    assert body.count("checked>") == 2
 
 
 async def test_running_with_a_target_set_does_not_seize_the_checked_strategies(

@@ -34,6 +34,35 @@ async def test_reference_case_round_trips_through_the_api(client: AsyncClient) -
     assert [e["label"] for e in body["entries"]] == ["1a", "1b", "2", "3", "4", "5", "6", "7"]
 
 
+async def test_explicit_null_entry_1b_produces_a_single_opener_run(client: AsyncClient) -> None:
+    body = {**REFERENCE_BODY, "entry_1b": None}
+    response = await client.post("/api/v1/simulations", json=body)
+
+    assert response.status_code == 201
+    result = response.json()
+    assert result["wall_required_stake"] == 1002
+    assert result["wall_balance_available"] == 79.0
+    assert result["losses_survived"] == 8
+    assert result["entry_1b"] is None
+    assert [e["label"] for e in result["entries"]][:2] == ["1", "2"]
+
+
+async def test_omitting_entry_1b_still_produces_the_two_opener_reference_case(
+    client: AsyncClient,
+) -> None:
+    """The regression proving the contract didn't shift: a caller who never
+    knew about `opener_count` keeps getting exactly what they always got."""
+    body = {k: v for k, v in REFERENCE_BODY.items() if k != "entry_1b"}
+    response = await client.post("/api/v1/simulations", json=body)
+
+    assert response.status_code == 201
+    result = response.json()
+    assert result["wall_required_stake"] == 910
+    assert result["wall_balance_available"] == 163.0
+    assert result["losses_survived"] == 8
+    assert [e["label"] for e in result["entries"]][:2] == ["1a", "1b"]
+
+
 async def test_stored_run_reads_back_identically(client: AsyncClient) -> None:
     created = (await client.post("/api/v1/simulations", json=REFERENCE_BODY)).json()
 

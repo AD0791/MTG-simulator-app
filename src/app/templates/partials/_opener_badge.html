@@ -6,7 +6,7 @@
 #}
 {% if badge %}
   <div class="badge{% if badge.meets_target is sameas false %} badge--short{% endif %}">
-    <span class="badge__label">If both openers win</span>
+    <span class="badge__label">{% if badge.opener_count == 1 %}If the opener wins{% else %}If both openers win{% endif %}</span>
     <span class="badge__value">
       {% if badge.target is not none %}
         {% if badge.meets_target %}

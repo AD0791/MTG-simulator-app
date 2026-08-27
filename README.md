@@ -25,8 +25,12 @@ seeing exactly how and where such a strategy fails.
 
 ## The staking plan being modelled
 
-1. **Entry 1a** and **1b** — two entries placed by hand on the first candle. They are the only
-   numbers supplied directly; everything after them is derived.
+1. **One or two opening entries** — placed by hand on the first candle. Two is the default
+   (**1a** and **1b**); a plan may instead open with a single entry, labelled **1**. Whichever is
+   chosen, those are the only numbers supplied directly — everything after them is derived.
+   Halving a two-opener plan to one buys no extra depth: the recovery formulas still place the
+   same number of entries before the wall, just with less cushion left; `double` walls one entry
+   sooner.
 2. **From entry 2 on**, the stake is computed from accumulated debt by one of three named
    strategies:
 
@@ -52,7 +56,7 @@ Doubling reaches the wall two entries sooner. Neither escapes it.
 | Path | What it does |
 |---|---|
 | `/` | The theory — how the payout mechanic works, why recovery staking hits a wall, and a FAQ for reading the results table |
-| `/simulator` | Capital, payout %, a target profit (as % of capital), the two opening entries, and a choice of strategies to compare — only the entry cap sits under **Advanced** |
+| `/simulator` | Capital, payout %, a target profit (as % of capital), a choice of one or two opening entries, and a choice of strategies to compare — only the entry cap sits under **Advanced** |
 | `/results/{id}` | One strategy's ladder, entry by entry, to the wall |
 | `/results/group/{uuid}` | Several strategies compared side by side, one table each, from a single submission |
 | `/history` | Past runs, revisitable and clearable |

@@ -25,6 +25,7 @@ DEFAULT_FORM = RawSimulationForm(
     payout_percent="92",
     entry_1a="5",
     entry_1b="5",
+    opener_count="2",
     strategies=["adder_breakeven", "double"],
 )
 
@@ -38,6 +39,7 @@ PRIMARY_FIELDS = {
     "capital",
     "payout_percent",
     "target_profit_percent",
+    "opener_count",
     "entry_1a",
     "entry_1b",
     "strategies",
@@ -124,9 +126,11 @@ def _suggest_openers(request: Request, values: dict[str, Any], form: SimulationF
     a dialog. Never runs a plan or touches the database — suggest, don't
     seize: the reader can still override the filled-in values before actually
     submitting."""
-    calc = bands.opener_derivation(form.target_profit, form.payout_percent / 100)
+    calc = bands.opener_derivation(form.target_profit, form.payout_percent / 100, form.opener_count)
     if calc is not None:
-        values = {**values, "entry_1a": str(calc.opener), "entry_1b": str(calc.opener)}
+        values = {**values, "entry_1a": str(calc.opener)}
+        if form.opener_count == 2:
+            values = {**values, "entry_1b": str(calc.opener)}
 
     # Pressing Suggest is an explicit "help me set this up" gesture, so it may
     # reasonably pre-check the strategies the target makes worth comparing.
@@ -178,10 +182,11 @@ def _preview_badge(values: dict[str, Any]) -> bands.OpenerBadge:
     every render — tolerant of blank or unparsed values, since this renders
     before anything has necessarily been validated."""
     capital = _safe_float(values.get("capital"))
+    entry_1b = _safe_float(values.get("entry_1b")) if values.get("opener_count") != "1" else None
     return bands.opener_badge(
         capital,
         _safe_float(values.get("entry_1a")),
-        _safe_float(values.get("entry_1b")),
+        entry_1b,
         _safe_float(values.get("payout_percent")) / 100,
         capital * _safe_float(values.get("target_profit_percent")) / 100,
     )

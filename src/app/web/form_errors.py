@@ -64,12 +64,16 @@ def from_domain(exc: ValueError, submitted: Mapping[str, str]) -> dict[str, str]
 
 
 def _offending_entry(submitted: Mapping[str, str]) -> str:
-    """Which of the two manual entries the domain was objecting to.
+    """Which manual entry the domain was objecting to.
 
     The domain rejects them with one shared message, so the field is identified
-    by looking at what was submitted — not by re-checking the rule.
+    by looking at what was submitted — not by re-checking the rule. When one
+    opener was requested, `entry_1b` is ignored server-side and must not be
+    checked here either — a blank, ignored field would otherwise become the
+    field the error points at.
     """
-    for field in _ENTRY_FIELDS:
+    fields = _ENTRY_FIELDS if submitted.get("opener_count") != "1" else ("entry_1a",)
+    for field in fields:
         try:
             if float(submitted.get(field, "")) <= 0:
                 return field

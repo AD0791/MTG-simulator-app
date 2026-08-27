@@ -20,12 +20,18 @@ precedent as `payout_percent` — converted to an absolute dollar amount in
 `SimulationForm.to_creates()` so the domain never learns about percentages.
 `SimulationCreate` stays in absolute dollars too: the JSON API is a direct
 line to the domain's own units, not the form's.
+
+Whether a plan opens with one entry or two is likewise a request-shape
+concern, not a domain one — `RawSimulationForm.opener_count` and
+`SimulationForm.opener_count` resolve to `entry_1b=None` in `to_creates()`
+when one opener is chosen. `StakingConfig` never learns a "count" exists;
+it only ever sees `entry_1b` as `float | None`.
 """
 
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # A ceiling on the simulated ladder length. This is a request-shape constraint,
 # not a domain rule: it bounds the work one request can ask the server to do.
@@ -43,7 +49,7 @@ class SimulationCreate(BaseModel):
 
     capital: float = 1000.0
     entry_1a: float = 5.0
-    entry_1b: float = 5.0
+    entry_1b: float | None = 5.0
     payout_ratio: float = 0.92
     target_profit: float = 0.0
     max_entries: int = Field(default=50, ge=1, le=MAX_ENTRIES_CEILING)
@@ -66,6 +72,10 @@ class RawSimulationForm(BaseModel):
     payout_percent: str = ""
     entry_1a: str = "5"
     entry_1b: str = "5"
+    # "1" or "2" openers. A form concern resolved at the edge, same precedent
+    # as payout_percent and target_profit_percent -- the domain never learns
+    # a "count" exists, only ever `entry_1b` as `float | None`.
+    opener_count: str = "2"
     target_profit_percent: str = "0"
     max_entries: str = "50"
     # Checkboxes sharing one `name` post as repeated form keys, which Form()
@@ -97,11 +107,23 @@ class SimulationForm(BaseModel):
     payout_percent: float
     entry_1a: float = 5.0
     entry_1b: float = 5.0
+    opener_count: int = Field(default=2, ge=1, le=2)
     target_profit_percent: float = 0.0
     max_entries: int = Field(default=50, ge=1, le=MAX_ENTRIES_CEILING)
     # No default: always comes from `RawSimulationForm`, which supplies the
     # key on every submission (empty when nothing was checked).
     strategies: list[str] = Field(min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _ignore_second_opener_when_one(cls, data: object) -> object:
+        """`entry_1b` is ignored server-side once one opener is requested —
+        see `to_creates()` below. Dropping it here, rather than validating it,
+        is what stops a blank or malformed leftover in a hidden field from
+        rejecting a submission the reader never meant to fill in."""
+        if isinstance(data, dict) and str(data.get("opener_count")) == "1":
+            data = {k: v for k, v in data.items() if k != "entry_1b"}
+        return data
 
     @property
     def target_profit(self) -> float:
@@ -115,7 +137,7 @@ class SimulationForm(BaseModel):
             SimulationCreate(
                 capital=self.capital,
                 entry_1a=self.entry_1a,
-                entry_1b=self.entry_1b,
+                entry_1b=self.entry_1b if self.opener_count == 2 else None,
                 payout_ratio=self.payout_percent / 100,
                 target_profit=self.target_profit,
                 max_entries=self.max_entries,
@@ -162,7 +184,7 @@ class SimulationRead(SimulationSummary):
     """A stored run in full, including every entry placed before the wall."""
 
     entry_1a: float
-    entry_1b: float
+    entry_1b: float | None
     target_profit: float
     # Null unless target_profit was entered as a percentage of capital — the
     # only way the web form sets it. A run created through the JSON API with

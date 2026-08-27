@@ -29,7 +29,8 @@ class Simulation(Base, TimestampMixin):
     # Inputs.
     capital: Mapped[float]
     entry_1a: Mapped[float]
-    entry_1b: Mapped[float]
+    # Null means one opener, labelled "1" rather than "1a"/"1b" (roadmap item C).
+    entry_1b: Mapped[float | None]
     second_entry: Mapped[float | None]
     payout_ratio: Mapped[float]
     target_profit: Mapped[float]

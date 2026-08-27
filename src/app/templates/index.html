@@ -73,8 +73,12 @@
   <h2>The plan this tool models</h2>
   <ol>
     <li>
-      <strong>Entry 1a and 1b</strong> — two entries placed by hand on the first candle, shared by
-      every strategy below. Neither has acted yet, so the streak has not started.
+      <strong>One or two opening entries</strong> — placed by hand on the first candle, shared by
+      every strategy below. Two is the usual shape; the simulator also models a single opener.
+      Neither has acted yet, so the streak has not started either way. Halving the opener does not
+      buy extra depth into the ladder — under the recovery formula the plan still places the same
+      number of entries before the wall, just with less cushion left when it arrives; under double
+      it walls one entry sooner. A smaller opening stake is not the safer choice.
     </li>
     <li>
       <strong>From the second entry on</strong> — one of two ways of sizing the stake takes over:

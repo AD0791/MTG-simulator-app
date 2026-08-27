@@ -154,34 +154,43 @@ def wall(simulation: Simulation) -> WallRow | None:
 
 @dataclass(frozen=True)
 class OpenerBadge:
-    """What happens if `entry_1a` and `entry_1b` both win — the ordinary case,
-    shown beside the ladder's worst case. Identical for every strategy: the
-    openers are shared inputs and neither has acted before the streak starts,
-    so nothing about how later stakes are sized has had a chance to matter yet.
+    """What happens if every opener wins — the ordinary case, shown beside
+    the ladder's worst case. Identical for every strategy: the openers are
+    shared inputs and neither has acted before the streak starts, so nothing
+    about how later stakes are sized has had a chance to matter yet.
     """
 
     profit: float
     balance: float
     target: float | None  # None when no target profit is set
     meets_target: bool | None  # None when `target` is None
+    opener_count: int  # 1 or 2 — lets the template say "the opener" vs "both openers"
 
 
 def opener_badge(
-    capital: float, entry_1a: float, entry_1b: float, payout_ratio: float, target_profit: float
+    capital: float,
+    entry_1a: float,
+    entry_1b: float | None,
+    payout_ratio: float,
+    target_profit: float,
 ) -> OpenerBadge:
-    profit = round((entry_1a + entry_1b) * payout_ratio, 2)
+    openers = entry_1a + entry_1b if entry_1b is not None else entry_1a
+    profit = round(openers * payout_ratio, 2)
     target = target_profit if target_profit > 0 else None
     return OpenerBadge(
         profit=profit,
         balance=round(capital + profit, 2),
         target=target,
         meets_target=(profit >= target) if target is not None else None,
+        opener_count=2 if entry_1b is not None else 1,
     )
 
 
-def suggested_opener(target_profit: float, payout_ratio: float) -> float | None:
-    """The equal opener `entry_1a == entry_1b` that clears `target_profit` the
-    moment both win: `a = b = ceil(target / (2 * payout))`.
+def suggested_opener(
+    target_profit: float, payout_ratio: float, opener_count: int = 2
+) -> float | None:
+    """The equal opener that clears `target_profit` the moment every opener
+    wins: `a = ceil(target / (opener_count * payout))`.
 
     None when there is no target to clear — a zero or negative target derives
     a zero or negative opener, which the domain rightly rejects, so the form
@@ -189,18 +198,19 @@ def suggested_opener(target_profit: float, payout_ratio: float) -> float | None:
     """
     if target_profit <= 0:
         return None
-    return math.ceil(target_profit / (2 * payout_ratio))
+    return math.ceil(target_profit / (opener_count * payout_ratio))
 
 
 @dataclass(frozen=True)
 class OpenerDerivation:
     """The worked arithmetic behind `suggested_opener`, laid out for the
-    Suggest dialog: target, payout, divisor, the exact quotient before
-    rounding up, the opener, what both openers winning returns, and the
-    surplus over the target the ceiling leaves."""
+    Suggest dialog: target, payout, opener count, divisor, the exact quotient
+    before rounding up, the opener, what every opener winning returns, and
+    the surplus over the target the ceiling leaves."""
 
     target: float
     payout_ratio: float
+    opener_count: int
     divisor: float
     exact: float
     opener: float
@@ -208,7 +218,9 @@ class OpenerDerivation:
     surplus: float
 
 
-def opener_derivation(target_profit: float, payout_ratio: float) -> OpenerDerivation | None:
+def opener_derivation(
+    target_profit: float, payout_ratio: float, opener_count: int = 2
+) -> OpenerDerivation | None:
     """The same rule as `suggested_opener`, shown rather than recomputed.
 
     `opener` comes from calling `suggested_opener` directly — this function
@@ -217,14 +229,15 @@ def opener_derivation(target_profit: float, payout_ratio: float) -> OpenerDeriva
     exactly when `suggested_opener` is: a target of $0 or below derives no
     opener at all.
     """
-    opener = suggested_opener(target_profit, payout_ratio)
+    opener = suggested_opener(target_profit, payout_ratio, opener_count)
     if opener is None:
         return None
-    divisor = 2 * payout_ratio
-    returns = round((opener + opener) * payout_ratio, 2)
+    divisor = opener_count * payout_ratio
+    returns = round(opener_count * opener * payout_ratio, 2)
     return OpenerDerivation(
         target=target_profit,
         payout_ratio=payout_ratio,
+        opener_count=opener_count,
         divisor=divisor,
         exact=target_profit / divisor,
         opener=opener,

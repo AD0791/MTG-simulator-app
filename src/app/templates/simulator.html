@@ -35,16 +35,40 @@
 
   {{ field(
       "target_profit_percent", "Target profit", values, errors,
-      help="Profit demanded on top of recovery, as a percentage of capital. Zero aims at breakeven plus rounding. Above zero, “Suggest openers” below can size the two opening entries to clear it the moment both win.",
+      help="Profit demanded on top of recovery, as a percentage of capital. Zero aims at breakeven plus rounding. Above zero, “Suggest openers” below can size the opening entry or entries to clear it the moment they win.",
       suffix="%"
   ) }}
 
-  {{ field("entry_1a", "First entry (1a)", values, errors,
-           help="First of the two entries placed by hand on the first candle. Every computed stake from the second entry on is sized from the debt these two leave behind.",
+  {% set opener_count = values.get("opener_count", "2") %}
+  <fieldset class="field">
+    <legend class="field__label">Opening entries</legend>
+    <div class="checkbox-group">
+      <label class="checkbox">
+        <input type="radio" name="opener_count" value="2" {% if opener_count != "1" %}checked{% endif %}>
+        Two entries on the first candle
+      </label>
+      <label class="checkbox">
+        <input type="radio" name="opener_count" value="1" {% if opener_count == "1" %}checked{% endif %}>
+        One entry
+      </label>
+    </div>
+    <p class="field__help">
+      Two is the usual shape. One entry places just <code>entry_1a</code> on the first candle,
+      labelled “1” — the server decides which applies from this choice, never from whether the
+      second field below was filled in.
+    </p>
+  </fieldset>
+
+  {# The "(1a)" only means something next to a 1b — with one opener the entry is
+     simply labelled "1", and the form should say the same thing the ladder will. #}
+  {{ field("entry_1a", "First entry" if opener_count == "1" else "First entry (1a)", values, errors,
+           help="First of the opening entries placed by hand on the first candle. Every computed stake from the second entry on is sized from the debt these leave behind.",
            prefix="$") }}
 
-  {{ field("entry_1b", "First entry (1b)", values, errors,
-           help="Second of the two entries on the first candle.", prefix="$") }}
+  <div class="field-group" data-opener="second">
+    {{ field("entry_1b", "First entry (1b)", values, errors,
+             help="Second of the two entries on the first candle. Ignored when “One entry” is selected above.", prefix="$") }}
+  </div>
 
   {% with badge_note = "A preview from what's above — recalculated each time the form comes back." %}
     {% include "partials/_opener_badge.html" %}

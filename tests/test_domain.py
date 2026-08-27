@@ -38,6 +38,26 @@ DOUBLE_LADDER = [
     ("5", 540.0, 810.0, 190.0),
 ]
 
+# A single opener (entry_1b=None): capital 1000, one $5 opener, 92% payout.
+SINGLE_OPENER_LADDER = [
+    ("1", 5.0, 5.0, 995.0),
+    ("2", 6, 11.0, 989.0),
+    ("3", 12, 23.0, 977.0),
+    ("4", 25, 48.0, 952.0),
+    ("5", 53, 101.0, 899.0),
+    ("6", 110, 211.0, 789.0),
+    ("7", 230, 441.0, 559.0),
+    ("8", 480, 921.0, 79.0),
+]
+
+SINGLE_OPENER_DOUBLE_LADDER = [
+    ("1", 5.0, 5.0, 995.0),
+    ("2", 10.0, 15.0, 985.0),
+    ("3", 30.0, 45.0, 955.0),
+    ("4", 90.0, 135.0, 865.0),
+    ("5", 270.0, 405.0, 595.0),
+]
+
 
 def test_reference_case_hits_the_wall_on_entry_eight() -> None:
     table = StakingTable.build(StakingConfig(**REFERENCE))
@@ -169,3 +189,51 @@ def test_double_survives_fewer_entries_than_adder_profit() -> None:
     # A win still clears the debt and profits — doubling isn't broken arithmetic.
     for row in double.rows[2:]:
         assert row.balance_if_win > 1000.0
+
+
+# --- A single first entry (entry_1b=None) --------------------------------
+
+
+def test_single_opener_is_accepted() -> None:
+    config = StakingConfig(**{**REFERENCE, "entry_1b": None})
+    assert config.entry_1b is None
+
+
+def test_single_opener_ladder_is_labelled_from_one() -> None:
+    table = StakingTable.build(StakingConfig(**{**REFERENCE, "entry_1b": None}))
+
+    assert table.wall_hit is True
+    assert table.wall_required_stake == 1002
+    assert table.wall_balance_available == 79.0
+    assert table.losses_survived == 8
+    actual = [(r.label, r.stake, r.cumulative_loss, r.balance) for r in table.rows]
+    assert actual == SINGLE_OPENER_LADDER
+    assert [r.label for r in table.rows] == [str(n) for n in range(1, 9)]
+
+
+def test_single_opener_double_ladder() -> None:
+    table = StakingTable.build(StakingConfig(**{**REFERENCE, "entry_1b": None}, strategy="double"))
+
+    assert table.wall_hit is True
+    assert table.wall_required_stake == 810.0
+    assert table.wall_balance_available == 595.0
+    assert table.losses_survived == 5
+    actual = [(r.label, r.stake, r.cumulative_loss, r.balance) for r in table.rows]
+    assert actual == SINGLE_OPENER_DOUBLE_LADDER
+
+
+def test_single_opener_places_more_entries_but_ends_with_less_cushion() -> None:
+    """Halving the opener buys no extra depth: the adder still places 8 entries,
+    just with less left when the wall arrives — $79 instead of $163."""
+    two_openers = StakingTable.build(StakingConfig(**REFERENCE))
+    one_opener = StakingTable.build(StakingConfig(**{**REFERENCE, "entry_1b": None}))
+
+    assert one_opener.losses_survived == two_openers.losses_survived == 8
+    assert one_opener.wall_balance_available < two_openers.wall_balance_available
+
+
+def test_non_positive_entry_1b_still_rejected_with_unchanged_message() -> None:
+    """The message is load-bearing — `form_errors.py` substring-matches it and
+    must keep working whether entry_1b is a real value or None."""
+    with pytest.raises(ValueError, match="entry_1a and entry_1b must all be positive"):
+        StakingConfig(**{**REFERENCE, "entry_1b": -5.0})

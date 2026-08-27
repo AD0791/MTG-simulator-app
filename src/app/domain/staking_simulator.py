@@ -3,11 +3,12 @@ staking_simulator.py
 
 Order-sizing simulator for binary-option-style trading (Pocket Option OTC).
 
-You specify the first two entries by hand (entry_1a, entry_1b on candle 1).
-From candle 2 onward, the stake is computed automatically by one of three
-named strategies -- adder_breakeven, adder_profit, or double -- continuing
-until the required stake exceeds the remaining balance -- the martingale
-wall.
+You specify the first entry or entries by hand: either one opener
+(entry_1a, labelled "1") or two (entry_1a and entry_1b, labelled "1a" and
+"1b") on candle 1 -- entry_1b=None means one opener. From candle 2 onward,
+the stake is computed automatically by one of three named strategies --
+adder_breakeven, adder_profit, or double -- continuing until the required
+stake exceeds the remaining balance -- the martingale wall.
 
   adder_breakeven  stake = ceil(cumulative_loss / payout_ratio)
   adder_profit     stake = ceil((cumulative_loss + target_profit) / payout_ratio)
@@ -53,7 +54,7 @@ STRATEGIES: Dict[str, Callable[[float, float, float], float]] = {
 class StakingConfig:
     capital: float = 1000.0
     entry_1a: float = 5.0
-    entry_1b: float = 5.0
+    entry_1b: Optional[float] = 5.0
     payout_ratio: float = 0.92       # 0.92 = 92% payout
     target_profit: float = 0.0       # profit demanded on top of recovery (adder_profit only)
     max_entries: int = 50            # safety cap
@@ -62,7 +63,7 @@ class StakingConfig:
     def __post_init__(self):
         if self.capital <= 0:
             raise ValueError("capital must be positive")
-        if self.entry_1a <= 0 or self.entry_1b <= 0:
+        if self.entry_1a <= 0 or (self.entry_1b is not None and self.entry_1b <= 0):
             raise ValueError("entry_1a and entry_1b must all be positive")
         if not (0 < self.payout_ratio <= 1):
             raise ValueError("payout_ratio must be between 0 and 1")
@@ -96,10 +97,11 @@ class StakingTable:
         balance = config.capital
         cumulative_loss = 0.0
 
-        manual_entries = [
-            ("1a", config.entry_1a),
-            ("1b", config.entry_1b),
-        ]
+        manual_entries: List[tuple[str, float]] = (
+            [("1a", config.entry_1a), ("1b", config.entry_1b)]
+            if config.entry_1b is not None
+            else [("1", config.entry_1a)]
+        )
 
         entry_number = 0
         for label, stake in manual_entries:

@@ -121,6 +121,56 @@ def test_opener_derivation_is_none_at_a_zero_target() -> None:
     assert opener_derivation(0.0, 0.92) is None
 
 
+# --- A single first entry (opener_count=1) --------------------------------
+
+
+def test_opener_badge_sums_a_single_opener() -> None:
+    badge = opener_badge(
+        capital=1000.0, entry_1a=5.0, entry_1b=None, payout_ratio=0.92, target_profit=0.0
+    )
+
+    assert badge.profit == 4.6
+    assert badge.balance == 1004.6
+    assert badge.opener_count == 1
+
+
+def test_opener_badge_opener_count_is_two_with_both_openers() -> None:
+    badge = opener_badge(
+        capital=1000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92, target_profit=0.0
+    )
+    assert badge.opener_count == 2
+
+
+def test_suggested_opener_at_one_opener_matches_the_roadmap_worked_example() -> None:
+    # T=$50, p=0.92, n=1: ceil(50 / 0.92) = $55.
+    assert suggested_opener(50.0, 0.92, opener_count=1) == 55
+
+
+def test_suggested_opener_at_two_openers_is_unchanged() -> None:
+    assert suggested_opener(50.0, 0.92, opener_count=2) == 28
+    assert suggested_opener(50.0, 0.92) == 28
+
+
+def test_opener_derivation_at_one_opener_matches_the_roadmaps_worked_example() -> None:
+    calc = opener_derivation(50.0, 0.92, opener_count=1)
+
+    assert calc is not None
+    assert calc.opener == 55
+    assert calc.returns == 50.6
+    assert calc.surplus == 0.6
+    assert calc.opener_count == 1
+
+
+def test_opener_derivation_at_two_openers_is_unchanged() -> None:
+    calc = opener_derivation(50.0, 0.92, opener_count=2)
+
+    assert calc is not None
+    assert calc.opener == 28
+    assert calc.returns == 51.52
+    assert calc.surplus == 1.52
+    assert calc.opener_count == 2
+
+
 def test_band_for_thresholds() -> None:
     assert band_for(0.0) == "calm"
     assert band_for(0.09) == "calm"

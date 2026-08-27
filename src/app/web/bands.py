@@ -192,6 +192,47 @@ def suggested_opener(target_profit: float, payout_ratio: float) -> float | None:
     return math.ceil(target_profit / (2 * payout_ratio))
 
 
+@dataclass(frozen=True)
+class OpenerDerivation:
+    """The worked arithmetic behind `suggested_opener`, laid out for the
+    Suggest dialog: target, payout, divisor, the exact quotient before
+    rounding up, the opener, what both openers winning returns, and the
+    surplus over the target the ceiling leaves."""
+
+    target: float
+    payout_ratio: float
+    divisor: float
+    exact: float
+    opener: float
+    returns: float
+    surplus: float
+
+
+def opener_derivation(target_profit: float, payout_ratio: float) -> OpenerDerivation | None:
+    """The same rule as `suggested_opener`, shown rather than recomputed.
+
+    `opener` comes from calling `suggested_opener` directly — this function
+    only assembles the intermediate figures around that one result, so the
+    dialog can never drift from the value the form actually uses. None
+    exactly when `suggested_opener` is: a target of $0 or below derives no
+    opener at all.
+    """
+    opener = suggested_opener(target_profit, payout_ratio)
+    if opener is None:
+        return None
+    divisor = 2 * payout_ratio
+    returns = round((opener + opener) * payout_ratio, 2)
+    return OpenerDerivation(
+        target=target_profit,
+        payout_ratio=payout_ratio,
+        divisor=divisor,
+        exact=target_profit / divisor,
+        opener=opener,
+        returns=returns,
+        surplus=round(returns - target_profit, 2),
+    )
+
+
 # The published reference case. The landing page renders it by running the
 # simulator, so the worked example can never drift from what the tool produces.
 REFERENCE_CONFIG = StakingConfig(capital=1000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92)

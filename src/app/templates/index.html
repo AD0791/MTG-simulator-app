@@ -51,7 +51,12 @@
     Since a win returns only a fraction of the stake, the stake has to be larger than the losses it
     is meant to erase — divided by the payout ratio:
   </p>
-  <p class="figure">stake = ceil( (cumulative loss + target profit) &divide; payout ratio )</p>
+  <p class="figure">
+    stake = &lceil;(cumulative loss + target profit) &divide; payout ratio&rceil;
+    <span class="visually-hidden">
+      stake equals the ceiling of cumulative loss plus target profit, divided by the payout ratio
+    </span>
+  </p>
   <p>
     At a 92% payout, that division multiplies the required stake by about 1.087 each time, on top
     of a cumulative loss that is itself growing. The stake does not grow with the streak; it grows
@@ -79,15 +84,19 @@
   <dl class="callout">
     <dt>Recovery formula ("adder")</dt>
     <dd>
-      <span class="figure">stake = ceil( (cumulative loss + target profit) &divide; payout ratio )</span>
+      <span class="figure">stake = &lceil;(cumulative loss + target profit) &divide; payout ratio&rceil;</span>
+      <span class="visually-hidden">
+        stake equals the ceiling of cumulative loss plus target profit, divided by the payout ratio
+      </span>
       — the smallest whole-dollar stake that would recover the entire streak, plus any target
       profit, if it won. At a target of $0 this is called <strong>breakeven recovery</strong>;
       above $0, <strong>profit recovery</strong>.
     </dd>
     <dt>Double</dt>
     <dd>
-      <span class="figure">stake = 2 &times; cumulative loss</span> — simplest to describe, and the
-      subject of the honesty note below.
+      <span class="figure">stake = 2 &times; cumulative loss</span>
+      <span class="visually-hidden">stake equals twice the cumulative loss</span>
+      — simplest to describe, and the subject of the honesty note below.
     </dd>
   </dl>
 

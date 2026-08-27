@@ -6,7 +6,7 @@ are things people bookmark.
 """
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse, Response
@@ -27,6 +27,11 @@ DEFAULT_FORM = RawSimulationForm(
     entry_1b="5",
     strategies=["adder_breakeven", "double"],
 )
+
+# Every strategy the form offers, in the order its checkboxes appear. Named
+# rather than read inline from `STRATEGY_LABELS`, which is a display map and
+# should not be doubling as the answer to a question about behaviour.
+ALL_STRATEGIES = list(bands.STRATEGY_LABELS)
 
 # The inputs shown up front; everything else lives under Advanced.
 PRIMARY_FIELDS = {
@@ -114,25 +119,45 @@ def submit_simulator(
     return _see_other(f"/results/group/{simulations[0].run_group}")
 
 
-def _suggest_openers(request: Request, values: dict[str, str], form: SimulationForm) -> Response:
-    """Recompute entry_1a/entry_1b from the target and re-render. Never runs a
-    plan or touches the database — suggest, don't seize: the reader can still
-    override the filled-in values before actually submitting."""
-    suggested = bands.suggested_opener(form.target_profit, form.payout_percent / 100)
-    if suggested is not None:
-        values = {**values, "entry_1a": str(suggested), "entry_1b": str(suggested)}
-    return _form(request, values, {})
+def _suggest_openers(request: Request, values: dict[str, Any], form: SimulationForm) -> Response:
+    """Recompute entry_1a/entry_1b from the target and show the arithmetic in
+    a dialog. Never runs a plan or touches the database — suggest, don't
+    seize: the reader can still override the filled-in values before actually
+    submitting."""
+    calc = bands.opener_derivation(form.target_profit, form.payout_percent / 100)
+    if calc is not None:
+        values = {**values, "entry_1a": str(calc.opener), "entry_1b": str(calc.opener)}
+
+    # Pressing Suggest is an explicit "help me set this up" gesture, so it may
+    # reasonably pre-check the strategies the target makes worth comparing.
+    # This must stay scoped to this path only: a plain Run submission must
+    # never rewrite the reader's checkboxes, or unchecking a box and running
+    # would stop meaning what it says. At 0% the defaults are left alone —
+    # adder_profit isn't offered at all there, being identical to breakeven.
+    #
+    # Gated on `calc`, not on the percentage: a percentage of a zero or absent
+    # capital resolves to a zero target, which derives no openers. Asking the
+    # percentage instead would tick every box while the dialog says there is no
+    # target to work from — the two halves of one button contradicting.
+    if calc is not None:
+        values = {**values, "strategies": ALL_STRATEGIES}
+
+    return _form(request, values, {}, calc=calc, show_calc=True)
 
 
 def _form(
     request: Request,
-    values: dict[str, str],
+    values: dict[str, Any],
     errors: dict[str, str],
     *,
     rejected: bool = False,
+    calc: bands.OpenerDerivation | None = None,
+    show_calc: bool = False,
 ) -> Response:
     """Render the form. A rejected submission keeps its values and opens the
-    panel holding the offending input."""
+    panel holding the offending input. `show_calc` opens the Suggest dialog;
+    `calc` being None with `show_calc` set is a real state — no target was
+    set, and the dialog says so rather than staying silent."""
     return templates.TemplateResponse(
         request,
         "simulator.html",
@@ -141,12 +166,14 @@ def _form(
             "errors": errors,
             "advanced_open": bool(set(errors) - PRIMARY_FIELDS - {"__form__"}),
             "badge": _preview_badge(values),
+            "calc": calc,
+            "show_calc": show_calc,
         },
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT if rejected else status.HTTP_200_OK,
     )
 
 
-def _preview_badge(values: dict[str, str]) -> bands.OpenerBadge:
+def _preview_badge(values: dict[str, Any]) -> bands.OpenerBadge:
     """What the currently-typed entry_1a/entry_1b are worth, recomputed on
     every render — tolerant of blank or unparsed values, since this renders
     before anything has necessarily been validated."""
@@ -211,6 +238,10 @@ def results_group(request: Request, run_group: uuid.UUID, session: SessionDep) -
                 simulation.payout_ratio,
                 simulation.target_profit,
             ),
+            # Breakeven recovery returns the debt and roughly nothing more; it
+            # stays on the comparison page as the honest contrast but its
+            # ladder is collapsed so it isn't a co-headline with the other two.
+            "collapsed": simulation.strategy == "adder_breakeven",
         }
         for simulation in simulations
     ]

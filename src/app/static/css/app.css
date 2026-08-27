@@ -370,6 +370,15 @@ fieldset.field > legend {
 }
 .button--quiet:hover { background: var(--raised); color: var(--text); }
 
+/* A raised surface with an accent border — visibly a control, and visibly
+   distinct from the primary `.button` beside it, which fills solid. */
+.button--suggest {
+  background: var(--raised);
+  border-color: var(--accent);
+  color: var(--text);
+}
+.button--suggest:hover { background: var(--accent-dim); }
+
 /* Outlined, never solid: a solid red button invites the misclick it exists to
    prevent. */
 .button--danger {
@@ -439,6 +448,23 @@ fieldset.field > legend {
   margin-bottom: var(--s4);
 }
 
+/* Same pattern as .advanced — the established disclosure, not a second one. */
+.ladder-reveal {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.ladder-reveal > summary {
+  cursor: pointer;
+  padding: var(--s3) var(--s4);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-weight: 600;
+}
+.ladder-reveal > :not(summary) { padding: 0 var(--s4) var(--s4); }
+
 /* --- opener badge -------------------------------------------------------- */
 
 /* The ordinary case, ahead of the ladder's worst case. A left border, like
@@ -474,6 +500,49 @@ fieldset.field > legend {
   font-size: .85rem;
   color: var(--muted);
 }
+
+/* --- suggest dialog ------------------------------------------------------ */
+
+/* Server-rendered with `open` set — a normal in-flow panel with no script at
+   all. `app.js` upgrades the same markup to a true modal via `showModal()`,
+   which is what makes `::backdrop` and the centering below apply. Width is
+   capped in `vw` so it fits a 375px viewport without its own horizontal
+   scroll — a bare <dialog> sizes to its content and will happily overflow. */
+.calc-modal {
+  max-width: min(90vw, 32rem);
+  width: 100%;
+  margin: var(--s8) auto;
+  padding: var(--s6);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 50%);
+}
+/* Without this the no-script path is broken, not merely plainer. The UA
+   stylesheet gives every `dialog` `position: absolute`, so a server-rendered
+   `<dialog open>` is taken out of flow and lands *on top of* the form —
+   verified at 375px, where it covered the lede and the whole Starting capital
+   field. `:modal` matches only after `showModal()`, so this restores normal
+   flow when the script is absent and leaves the real modal untouched when it
+   is not. */
+.calc-modal:not(:modal) {
+  position: static;
+}
+
+.calc-modal::backdrop {
+  background: rgb(10 12 16 / 70%);
+}
+.calc-modal h2 {
+  font-size: 1.1rem;
+  margin-bottom: var(--s4);
+}
+.calc-line, .calc-formula, .calc-check {
+  margin: 0 0 var(--s2);
+  font-size: .85rem;
+  line-height: 1.7;
+}
+.calc-modal form { margin-top: var(--s4); }
 
 /* --- the ladder -------------------------------------------------------- */
 

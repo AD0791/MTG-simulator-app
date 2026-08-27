@@ -32,8 +32,8 @@ seeing exactly how and where such a strategy fails.
 
    | Strategy | Rule | What it is reaching for |
    |---|---|---|
-   | `adder_breakeven` | `ceil(cumulative_loss / payout_ratio)` | the smallest whole-dollar stake that, winning, gets back to even |
-   | `adder_profit` | `ceil((cumulative_loss + target_profit) / payout_ratio)` | the same, plus a fixed profit on top — identical to breakeven when the target is 0 |
+   | `adder_breakeven` | `⌈cumulative_loss ÷ payout_ratio⌉` | the smallest whole-dollar stake that, winning, gets back to even |
+   | `adder_profit` | `⌈(cumulative_loss + target_profit) ÷ payout_ratio⌉` | the same, plus a fixed profit on top — identical to breakeven when the target is 0 |
    | `double` | `2 × cumulative_loss` | the textbook martingale; the only one that reads neither the payout nor the target |
 
 The simulation stops the instant the next required stake exceeds the remaining balance.

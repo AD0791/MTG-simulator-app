@@ -118,13 +118,80 @@ async def test_suggest_action_fills_in_openers_without_running(client: AsyncClie
     assert "clears the $10.00 target" in body  # the live preview updates too
 
 
+async def test_suggest_action_shows_the_derivation_and_checks_all_three_strategies(
+    client: AsyncClient,
+) -> None:
+    """5% of $1000 is a $50 target: ceil(50 / 1.84) = $28 each — the
+    roadmap's worked example, verified against the live domain."""
+    response = await client.post(
+        "/simulator",
+        data={**REFERENCE_FORM, "target_profit_percent": "5", "action": "suggest"},
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert '<dialog class="calc-modal" open>' in body
+    assert "50.00" in body and "1.84" in body and "27.1739" in body
+    assert "$28" in body
+    assert "51.52" in body and "1.52" in body
+    assert 'value="28"' in body
+    # Suggest is the one path that may pre-check every strategy the target
+    # makes distinct.
+    assert body.count("checked>") == 3
+
+
 async def test_suggest_action_with_no_target_leaves_openers_unchanged(
     client: AsyncClient,
 ) -> None:
     response = await client.post("/simulator", data={**REFERENCE_FORM, "action": "suggest"})
 
     assert response.status_code == 200
-    assert 'value="5"' in response.text  # REFERENCE_FORM's own entry_1a/1b
+    body = response.text
+    assert 'value="5"' in body  # REFERENCE_FORM's own entry_1a/1b
+    assert '<dialog class="calc-modal" open>' in body
+    assert "target profit above 0% is needed" in body
+
+
+async def test_suggest_does_not_check_strategies_when_it_cannot_derive_openers(
+    client: AsyncClient,
+) -> None:
+    """A percentage of no capital is no target at all.
+
+    The dialog and the checkboxes must answer the same question. Gating the
+    checkboxes on the percentage instead of on the derivation made them
+    disagree: every box ticked, while the dialog said there was no target to
+    work from.
+    """
+    response = await client.post(
+        "/simulator",
+        data={
+            **REFERENCE_FORM,
+            "capital": "0",
+            "target_profit_percent": "5",
+            "strategies": ["double"],
+            "action": "suggest",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "target profit above 0% is needed" in body
+    assert body.count("checked>") == 1  # the one the reader chose, untouched
+
+
+async def test_running_with_a_target_set_does_not_seize_the_checked_strategies(
+    client: AsyncClient,
+) -> None:
+    """Suggest may pre-check every strategy once a target is set; a plain Run
+    must never do the same — unchecking a box and running has to mean what
+    it says."""
+    response = await client.post(
+        "/simulator",
+        data={**REFERENCE_FORM, "target_profit_percent": "5", "strategies": ["double"]},
+    )
+
+    assert response.status_code == 303
+    assert "/group/" not in response.headers["location"]  # exactly one strategy ran
 
 
 async def test_suggested_openers_stay_editable_and_still_run(
@@ -180,6 +247,31 @@ async def test_selecting_two_strategies_redirects_to_a_comparison(
     assert len(stored) == 2
     assert stored[0].run_group is not None
     assert stored[0].run_group == stored[1].run_group
+
+
+async def test_comparison_page_collapses_only_the_breakeven_ladder(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(
+        "/simulator",
+        data={**REFERENCE_FORM, "strategies": ["adder_breakeven", "adder_profit", "double"]},
+    )
+    page = await client.get(response.headers["location"])
+    body = page.text
+
+    # All three tiles stay in the summary strip — the demotion never touches it.
+    assert body.count('<li class="stat') == 3
+    assert body.count('<details class="ladder-reveal">') == 1
+    assert "Show the ladder" in body
+
+
+async def test_single_run_page_never_collapses_its_ladder(client: AsyncClient) -> None:
+    response = await client.post(
+        "/simulator", data={**REFERENCE_FORM, "strategies": ["adder_breakeven"]}
+    )
+    page = await client.get(response.headers["location"])
+
+    assert "ladder-reveal" not in page.text
 
 
 async def test_clearing_a_comparison_clears_every_run_in_it(

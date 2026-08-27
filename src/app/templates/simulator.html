@@ -6,6 +6,8 @@
 {% block page_class %}page--prose{% endblock %}
 
 {% block content %}
+{% include "partials/_opener_calc.html" %}
+
 <header>
   <h1>Run a plan</h1>
   <p class="lede">
@@ -49,7 +51,7 @@
   {% endwith %}
 
   <div class="suggest">
-    <button class="button button--quiet" type="submit" name="action" value="suggest">
+    <button class="button button--suggest" type="submit" name="action" value="suggest">
       Suggest openers from the target
     </button>
     <p class="field__help">

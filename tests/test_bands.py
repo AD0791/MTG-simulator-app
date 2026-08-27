@@ -13,6 +13,7 @@ from app.web.bands import (
     drawdown_band_for,
     ladder,
     opener_badge,
+    opener_derivation,
     recovery_gain,
     suggested_opener,
 )
@@ -96,6 +97,28 @@ def test_suggested_opener_is_none_at_zero_or_negative_target() -> None:
     caller falls back to the reader's own values instead."""
     assert suggested_opener(0.0, 0.92) is None
     assert suggested_opener(-5.0, 0.92) is None
+
+
+def test_opener_derivation_matches_the_roadmaps_worked_example() -> None:
+    # T=$50, p=0.92: ceil(50 / 1.84) = $28 each, returning $51.52, clearing by $1.52.
+    calc = opener_derivation(50.0, 0.92)
+
+    assert calc is not None
+    assert calc.opener == 28
+    assert calc.returns == 51.52
+    assert calc.surplus == 1.52
+
+
+def test_opener_derivation_agrees_with_suggested_opener() -> None:
+    """Not a second computation — the same seam, shown."""
+    calc = opener_derivation(50.0, 0.92)
+
+    assert calc is not None
+    assert calc.opener == suggested_opener(50.0, 0.92)
+
+
+def test_opener_derivation_is_none_at_a_zero_target() -> None:
+    assert opener_derivation(0.0, 0.92) is None
 
 
 def test_band_for_thresholds() -> None:

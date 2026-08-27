@@ -1,0 +1,46 @@
+{#
+  The Suggest dialog. The server renders this with `open` set the moment the
+  reader presses Suggest, so it is a normal inline panel with no script at
+  all; `static/js/app.js` upgrades that same markup into a true modal. The
+  arithmetic is `opener_derivation`'s own numbers, not recomputed here.
+#}
+{% if show_calc %}
+<dialog class="calc-modal" open>
+  <h2>{% if calc %}How the openers were derived{% else %}Suggest openers{% endif %}</h2>
+
+  {% if calc %}
+    <p class="figure calc-line">target &nbsp; T = ${{ "%.2f"|format(calc.target) }}</p>
+    <p class="figure calc-line">payout &nbsp; p = {{ "%.2f"|format(calc.payout_ratio) }}</p>
+
+    <p class="figure calc-formula">
+      a = b = &lceil;{{ "%.2f"|format(calc.target) }} &divide; (2 &times; {{ "%.2f"|format(calc.payout_ratio) }})&rceil;<br>
+      &#8195;&#8195;&#8195;= &lceil;{{ "%.2f"|format(calc.target) }} &divide; {{ "%.2f"|format(calc.divisor) }}&rceil;<br>
+      &#8195;&#8195;&#8195;= &lceil;{{ "%.4f"|format(calc.exact) }}&rceil;<br>
+      &#8195;&#8195;&#8195;= ${{ "%.0f"|format(calc.opener) }}
+    </p>
+    <p class="visually-hidden">
+      a equals b equals the ceiling of the ${{ "%.2f"|format(calc.target) }} target divided by twice the
+      {{ "%.2f"|format(calc.payout_ratio) }} payout — the ceiling of {{ "%.4f"|format(calc.exact) }} — which
+      rounds up to ${{ "%.0f"|format(calc.opener) }}.
+    </p>
+
+    <p class="figure calc-check">
+      check &nbsp; ({{ "%.0f"|format(calc.opener) }} + {{ "%.0f"|format(calc.opener) }}) &times;
+      {{ "%.2f"|format(calc.payout_ratio) }} = ${{ "%.2f"|format(calc.returns) }} &nbsp;&ge;&nbsp;
+      ${{ "%.2f"|format(calc.target) }} &nbsp; clears it by ${{ "%.2f"|format(calc.surplus) }}
+    </p>
+    <p class="visually-hidden">
+      Check: {{ "%.0f"|format(calc.opener) }} plus {{ "%.0f"|format(calc.opener) }}, times
+      {{ "%.2f"|format(calc.payout_ratio) }}, returns ${{ "%.2f"|format(calc.returns) }}, which is at least the
+      ${{ "%.2f"|format(calc.target) }} target — clearing it by ${{ "%.2f"|format(calc.surplus) }}.
+    </p>
+  {% else %}
+    <p>A target profit above 0% is needed to derive the openers from it. Set one above and press Suggest
+      again.</p>
+  {% endif %}
+
+  <form method="dialog">
+    <button class="button button--quiet" type="submit">Close</button>
+  </form>
+</dialog>
+{% endif %}

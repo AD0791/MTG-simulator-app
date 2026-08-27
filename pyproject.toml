@@ -2,6 +2,10 @@
 name = "mtg-simulator"
 version = "0.1.0"
 description = "Martingale wall simulator — locates the entry at which a staking plan can no longer fund its next stake."
+# PEP 639: an SPDX expression, not the retired table/classifier form. Needs
+# hatchling >= 1.27 to build, which the pinned backend satisfies.
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.19.1",

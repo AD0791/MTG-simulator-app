@@ -16,7 +16,10 @@ WORKDIR /app
 # Dependencies before source, so a code change does not invalidate this layer.
 # --frozen fails the build on a stale lock rather than quietly resolving
 # something different from the local environment.
-COPY pyproject.toml uv.lock ./
+# LICENSE travels with pyproject.toml: `license-files` declares it, so the
+# project install below fails without it — and BSD-3 requires the notice to
+# accompany the redistributed binary in any case.
+COPY pyproject.toml uv.lock LICENSE ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY src/ ./src/

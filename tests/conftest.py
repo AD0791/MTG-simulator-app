@@ -32,7 +32,7 @@ REFERENCE_FORM = {
     "payout_percent": "92",
     "entry_1a": "5",
     "entry_1b": "5",
-    "target_profit": "0",
+    "target_profit_percent": "0",
     "max_entries": "50",
     # Required: an unchecked checkbox is simply absent from a real POST, so
     # `RawSimulationForm.strategies` defaults to empty rather than to some

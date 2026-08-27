@@ -37,10 +37,9 @@ async def test_simulator_shows_three_primary_inputs_and_a_collapsed_panel(
 
     assert response.status_code == 200
     body = response.text
-    for field in ("capital", "payout_percent", "entry_1a", "entry_1b"):
+    for field in ("capital", "payout_percent", "target_profit_percent", "entry_1a", "entry_1b"):
         assert f'id="{field}"' in body
-    for field in ("target_profit", "max_entries"):
-        assert f'id="{field}"' in body
+    assert 'id="max_entries"' in body  # the one field still under Advanced
     assert '<details class="advanced">' in body  # collapsed: no `open`
 
 
@@ -90,11 +89,54 @@ async def test_submitting_the_reference_case_redirects_to_its_result(
 async def test_a_target_the_openers_cannot_meet_shows_a_shortfall_badge(
     client: AsyncClient,
 ) -> None:
-    response = await client.post("/simulator", data={**REFERENCE_FORM, "target_profit": "10"})
+    # 1% of $1000 capital is a $10 target.
+    response = await client.post(
+        "/simulator", data={**REFERENCE_FORM, "target_profit_percent": "1"}
+    )
     page = await client.get(response.headers["location"])
 
     assert "$0.80 short of the $10.00 target" in page.text
     assert 'class="badge badge--short"' in page.text
+
+
+async def test_suggest_action_fills_in_openers_without_running(client: AsyncClient) -> None:
+    """1% of $1000 is a $10 target: ceil(10 / 1.84) = $6 each."""
+    response = await client.post(
+        "/simulator",
+        data={**REFERENCE_FORM, "target_profit_percent": "1", "action": "suggest"},
+    )
+
+    assert response.status_code == 200  # re-rendered the form, not a redirect
+    body = response.text
+    assert 'value="6"' in body
+    assert "clears the $10.00 target" in body  # the live preview updates too
+
+
+async def test_suggest_action_with_no_target_leaves_openers_unchanged(
+    client: AsyncClient,
+) -> None:
+    response = await client.post("/simulator", data={**REFERENCE_FORM, "action": "suggest"})
+
+    assert response.status_code == 200
+    assert 'value="5"' in response.text  # REFERENCE_FORM's own entry_1a/1b
+
+
+async def test_suggested_openers_stay_editable_and_still_run(
+    client: AsyncClient, session: Session
+) -> None:
+    """Suggest, don't seize: the reader can override the filled-in pair and
+    the plan still runs with what they actually typed."""
+    response = await client.post(
+        "/simulator",
+        data={**REFERENCE_FORM, "target_profit_percent": "1", "entry_1a": "5", "entry_1b": "5"},
+    )
+
+    assert response.status_code == 303
+    stored = session.scalars(select(Simulation)).one()
+    assert stored.entry_1a == 5.0
+    assert stored.entry_1b == 5.0
+    assert stored.target_profit == 10.0
+    assert stored.target_profit_percent == 1.0
 
 
 async def test_selecting_one_strategy_behaves_as_a_single_run(client: AsyncClient) -> None:
@@ -158,7 +200,7 @@ async def test_a_rejected_plan_keeps_its_values_and_names_the_field(
     client: AsyncClient,
 ) -> None:
     response = await client.post(
-        "/simulator", data={**REFERENCE_FORM, "capital": "-50", "target_profit": "7"}
+        "/simulator", data={**REFERENCE_FORM, "capital": "-50", "target_profit_percent": "7"}
     )
 
     assert response.status_code == 422
@@ -189,11 +231,13 @@ async def test_an_impossible_payout_is_reported_in_the_forms_own_units(
 
 
 async def test_an_advanced_field_error_opens_the_advanced_panel(client: AsyncClient) -> None:
-    response = await client.post("/simulator", data={**REFERENCE_FORM, "target_profit": "-1"})
+    """max_entries is the one remaining field under Advanced; target_profit_percent
+    moved to the primary set in item 4 and no longer exercises this."""
+    response = await client.post("/simulator", data={**REFERENCE_FORM, "max_entries": "0"})
 
     assert response.status_code == 422
     assert '<details class="advanced" open>' in response.text
-    assert 'id="target_profit-error"' in response.text
+    assert 'id="max_entries-error"' in response.text
 
 
 async def test_history_is_empty_before_anything_runs(client: AsyncClient) -> None:
@@ -249,6 +293,17 @@ async def test_history_shows_the_strategy_and_links_a_comparison_to_its_group(
     assert "Double" in listed.text
     assert '<th scope="col">Strategy</th>' in listed.text
     assert "/results/group/" in listed.text
+
+
+async def test_history_shows_the_target_as_a_percentage_when_that_is_what_was_typed(
+    client: AsyncClient,
+) -> None:
+    await client.post("/simulator", data={**REFERENCE_FORM, "target_profit_percent": "1"})
+
+    listed = await client.get("/history")
+
+    assert '<th scope="col" class="num">Target</th>' in listed.text
+    assert "1%" in listed.text
 
 
 async def test_a_missing_run_renders_a_page_not_a_json_body(client: AsyncClient) -> None:

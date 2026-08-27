@@ -33,6 +33,11 @@ class Simulation(Base, TimestampMixin):
     second_entry: Mapped[float | None]
     payout_ratio: Mapped[float]
     target_profit: Mapped[float]
+    # Set only when target_profit was entered as a percentage of capital —
+    # the web form's only mode. Null for a row from the JSON API, or any
+    # row recorded before this existed: an absolute target_profit with no
+    # percentage basis to record.
+    target_profit_percent: Mapped[float | None] = mapped_column(default=None)
     max_entries: Mapped[int]
     # One of the STRATEGIES names in `domain.staking_simulator`. Server-side
     # default so the rows recorded before this method existed read as what

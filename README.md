@@ -44,8 +44,9 @@ entries: it needs **$910** and only **$163** remains.
 | Path | What it does |
 |---|---|
 | `/` | The theory — how the payout mechanic works, why recovery staking hits a wall, and a FAQ for reading the results table |
-| `/simulator` | Capital, payout %, and the two opening entries — with the remaining parameters under **Advanced** |
-| `/results/{id}` | The full ladder, entry by entry, to the wall |
+| `/simulator` | Capital, payout %, a target profit (as % of capital), the two opening entries, and a choice of strategies to compare — only the entry cap sits under **Advanced** |
+| `/results/{id}` | One strategy's ladder, entry by entry, to the wall |
+| `/results/group/{id}` | Several strategies compared side by side, one table each, from a single submission |
 | `/history` | Past runs, revisitable and clearable |
 
 A versioned JSON API is available alongside the pages at `/api/v1` — `POST /api/v1/simulations`

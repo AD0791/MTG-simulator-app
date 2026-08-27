@@ -12,7 +12,10 @@
     {{ "%.2f"|format(simulation.payout_ratio * 100) }}% payout &middot;
     ${{ "%.2f"|format(simulation.entry_1a) }} + ${{ "%.2f"|format(simulation.entry_1b) }} on the
     first candle
-    {%- if simulation.target_profit %} &middot; ${{ "%.2f"|format(simulation.target_profit) }} target profit{% endif %}
+    {%- if simulation.target_profit %}
+      &middot; ${{ "%.2f"|format(simulation.target_profit) }} target profit
+      {%- if simulation.target_profit_percent %} ({{ "%.0f"|format(simulation.target_profit_percent) }}% of capital){% endif %}
+    {% endif %}
   </p>
 </header>
 

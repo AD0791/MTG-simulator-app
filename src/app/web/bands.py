@@ -10,6 +10,7 @@ The template receives a band name and the share as a number. Colour only
 reinforces what the printed share already says.
 """
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
@@ -122,6 +123,19 @@ def opener_badge(
         target=target,
         meets_target=(profit >= target) if target is not None else None,
     )
+
+
+def suggested_opener(target_profit: float, payout_ratio: float) -> float | None:
+    """The equal opener `entry_1a == entry_1b` that clears `target_profit` the
+    moment both win: `a = b = ceil(target / (2 * payout))`.
+
+    None when there is no target to clear — a zero or negative target derives
+    a zero or negative opener, which the domain rightly rejects, so the form
+    falls back to whatever the reader already typed rather than seizing it.
+    """
+    if target_profit <= 0:
+        return None
+    return math.ceil(target_profit / (2 * payout_ratio))
 
 
 # The published reference case. The landing page renders it by running the

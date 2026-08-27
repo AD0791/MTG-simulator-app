@@ -18,6 +18,10 @@ _ENTRY_FIELDS = ("entry_1a", "entry_1b")
 # check, restated in the units the reader typed.
 _PAYOUT_MESSAGE = "Payout must be above 0% and no more than 100%."
 
+# Same pattern for the target: the form asks for a percentage of capital, the
+# domain rejects an absolute dollar amount that resolved negative.
+_TARGET_PROFIT_MESSAGE = "Target profit can't be negative."
+
 
 def from_validation(exc: ValidationError) -> dict[str, str]:
     """Field messages for a malformed submission — text in a number field, and so on."""
@@ -49,7 +53,7 @@ def from_domain(exc: ValueError, submitted: Mapping[str, str]) -> dict[str, str]
     if "capital" in message:
         return {"capital": message.capitalize() + "."}
     if "target_profit" in message:
-        return {"target_profit": message.capitalize() + "."}
+        return {"target_profit_percent": _TARGET_PROFIT_MESSAGE}
     if "must all be positive" in message:
         return {_offending_entry(submitted): "Enter an amount above zero."}
     if "strategy must be one of" in message:

@@ -29,7 +29,14 @@ DEFAULT_FORM = RawSimulationForm(
 )
 
 # The inputs shown up front; everything else lives under Advanced.
-PRIMARY_FIELDS = {"capital", "payout_percent", "entry_1a", "entry_1b", "strategies"}
+PRIMARY_FIELDS = {
+    "capital",
+    "payout_percent",
+    "target_profit_percent",
+    "entry_1a",
+    "entry_1b",
+    "strategies",
+}
 
 
 def _see_other(path: str) -> RedirectResponse:
@@ -69,7 +76,7 @@ def simulator(request: Request) -> Response:
     return _form(request, DEFAULT_FORM.model_dump(), {})
 
 
-@router.post("/simulator", summary="Run one or more strategies and redirect to the result")
+@router.post("/simulator", summary="Run one or more strategies, or suggest openers from a target")
 def submit_simulator(
     request: Request,
     session: SessionDep,
@@ -86,8 +93,17 @@ def submit_simulator(
     except ValidationError as exc:
         return _form(request, values, form_errors.from_validation(exc), rejected=True)
 
+    if submitted.action == "suggest":
+        return _suggest_openers(request, values, form)
+
     try:
-        simulations = simulation_service.run_and_store_group(session, form.to_creates())
+        simulations = simulation_service.run_and_store_group(
+            session,
+            form.to_creates(),
+            target_profit_percent=form.target_profit_percent
+            if form.target_profit_percent > 0
+            else None,
+        )
     except ValueError as exc:
         return _form(request, values, form_errors.from_domain(exc, values), rejected=True)
 
@@ -96,6 +112,16 @@ def submit_simulator(
     if len(simulations) == 1:
         return _see_other(f"/results/{simulations[0].id}")
     return _see_other(f"/results/group/{simulations[0].run_group}")
+
+
+def _suggest_openers(request: Request, values: dict[str, str], form: SimulationForm) -> Response:
+    """Recompute entry_1a/entry_1b from the target and re-render. Never runs a
+    plan or touches the database — suggest, don't seize: the reader can still
+    override the filled-in values before actually submitting."""
+    suggested = bands.suggested_opener(form.target_profit, form.payout_percent / 100)
+    if suggested is not None:
+        values = {**values, "entry_1a": str(suggested), "entry_1b": str(suggested)}
+    return _form(request, values, {})
 
 
 def _form(
@@ -114,9 +140,31 @@ def _form(
             "values": values,
             "errors": errors,
             "advanced_open": bool(set(errors) - PRIMARY_FIELDS - {"__form__"}),
+            "badge": _preview_badge(values),
         },
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT if rejected else status.HTTP_200_OK,
     )
+
+
+def _preview_badge(values: dict[str, str]) -> bands.OpenerBadge:
+    """What the currently-typed entry_1a/entry_1b are worth, recomputed on
+    every render — tolerant of blank or unparsed values, since this renders
+    before anything has necessarily been validated."""
+    capital = _safe_float(values.get("capital"))
+    return bands.opener_badge(
+        capital,
+        _safe_float(values.get("entry_1a")),
+        _safe_float(values.get("entry_1b")),
+        _safe_float(values.get("payout_percent")) / 100,
+        capital * _safe_float(values.get("target_profit_percent")) / 100,
+    )
+
+
+def _safe_float(value: str | None, default: float = 0.0) -> float:
+    try:
+        return float(value) if value else default
+    except ValueError:
+        return default
 
 
 @router.get("/results/{simulation_id}", summary="One run's ladder")

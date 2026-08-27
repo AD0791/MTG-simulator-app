@@ -14,6 +14,12 @@ column is kept nullable so already-recorded runs keep their data.
 domain only ever knows one strategy at a time (`StakingConfig.strategy`), so
 "at least one strategy chosen" is policed here, in `Field(min_length=1)`, and
 each individual name is left to the same domain rejection a bad payout gets.
+
+The form asks for a target profit as a percentage of capital, the same
+precedent as `payout_percent` — converted to an absolute dollar amount in
+`SimulationForm.to_creates()` so the domain never learns about percentages.
+`SimulationCreate` stays in absolute dollars too: the JSON API is a direct
+line to the domain's own units, not the form's.
 """
 
 from datetime import datetime
@@ -60,7 +66,7 @@ class RawSimulationForm(BaseModel):
     payout_percent: str = ""
     entry_1a: str = "5"
     entry_1b: str = "5"
-    target_profit: str = "0"
+    target_profit_percent: str = "0"
     max_entries: str = "50"
     # Checkboxes sharing one `name` post as repeated form keys, which Form()
     # collects into a list the same way repeated query keys do. Defaults to
@@ -70,6 +76,11 @@ class RawSimulationForm(BaseModel):
     # of silently falling back to some pre-picked set of strategies. The
     # simulator page's own suggested checked state lives in `DEFAULT_FORM`.
     strategies: list[str] = Field(default_factory=list)
+    # Which submit button was pressed: "run" simulates and stores; "suggest"
+    # only recomputes entry_1a/entry_1b from the target and re-renders the
+    # form. Two buttons sharing one name, not a second endpoint — see
+    # `web/pages.py`.
+    action: str = "run"
 
 
 class SimulationForm(BaseModel):
@@ -86,11 +97,17 @@ class SimulationForm(BaseModel):
     payout_percent: float
     entry_1a: float = 5.0
     entry_1b: float = 5.0
-    target_profit: float = 0.0
+    target_profit_percent: float = 0.0
     max_entries: int = Field(default=50, ge=1, le=MAX_ENTRIES_CEILING)
     # No default: always comes from `RawSimulationForm`, which supplies the
     # key on every submission (empty when nothing was checked).
     strategies: list[str] = Field(min_length=1)
+
+    @property
+    def target_profit(self) -> float:
+        """The percentage resolved to an absolute dollar amount, capital as
+        the reference point — the only form the domain ever sees."""
+        return self.capital * self.target_profit_percent / 100
 
     def to_creates(self) -> list["SimulationCreate"]:
         """One `SimulationCreate` per selected strategy, sharing every other field."""
@@ -147,6 +164,11 @@ class SimulationRead(SimulationSummary):
     entry_1a: float
     entry_1b: float
     target_profit: float
+    # Null unless target_profit was entered as a percentage of capital — the
+    # only way the web form sets it. A run created through the JSON API with
+    # an absolute target_profit carries no percentage, because none was
+    # chosen.
+    target_profit_percent: float | None
     max_entries: int
     entries: list[EntryRead]
 

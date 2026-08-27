@@ -1,0 +1,23 @@
+{#
+  What entry_1a and entry_1b are worth if both win. Shared between the results
+  table (the stored, final figure) and the simulator form (a live preview
+  recomputed from whatever the reader has typed so far) — one markup contract
+  so the two never drift apart.
+#}
+{% if badge %}
+  <div class="badge{% if badge.meets_target is sameas false %} badge--short{% endif %}">
+    <span class="badge__label">If both openers win</span>
+    <span class="badge__value">
+      {% if badge.target is not none %}
+        {% if badge.meets_target %}
+          clears the ${{ "%.2f"|format(badge.target) }} target by ${{ "%.2f"|format(badge.profit - badge.target) }}
+        {% else %}
+          ${{ "%.2f"|format(badge.target - badge.profit) }} short of the ${{ "%.2f"|format(badge.target) }} target
+        {% endif %}
+      {% else %}
+        +${{ "%.2f"|format(badge.profit) }}, balance ${{ "%.2f"|format(badge.balance) }}
+      {% endif %}
+    </span>
+    <span class="badge__note">{{ badge_note }}</span>
+  </div>
+{% endif %}

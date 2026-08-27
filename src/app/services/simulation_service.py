@@ -21,7 +21,10 @@ from ..schemas import SimulationCreate
 
 
 def _build_simulation(
-    config: StakingConfig, table: StakingTable, run_group: uuid.UUID | None
+    config: StakingConfig,
+    table: StakingTable,
+    run_group: uuid.UUID | None,
+    target_profit_percent: float | None = None,
 ) -> Simulation:
     return Simulation(
         run_group=run_group,
@@ -30,6 +33,7 @@ def _build_simulation(
         entry_1b=config.entry_1b,
         payout_ratio=config.payout_ratio,
         target_profit=config.target_profit,
+        target_profit_percent=target_profit_percent,
         max_entries=config.max_entries,
         strategy=config.strategy,
         wall_hit=table.wall_hit,
@@ -50,25 +54,40 @@ def _build_simulation(
     )
 
 
-def run_and_store(session: Session, payload: SimulationCreate) -> Simulation:
-    """Simulate one plan and persist the run with its full ladder."""
+def run_and_store(
+    session: Session, payload: SimulationCreate, target_profit_percent: float | None = None
+) -> Simulation:
+    """Simulate one plan and persist the run with its full ladder.
+
+    `target_profit_percent` is provenance only — the web form's record of
+    what the reader actually typed — not a `SimulationCreate` field. A direct
+    JSON API caller sends an absolute `target_profit` and leaves this unset,
+    which is the truth for that call: no percentage was chosen.
+    """
     config = StakingConfig(**payload.model_dump())
     table = StakingTable.build(config)
-    simulation = _build_simulation(config, table, run_group=None)
+    simulation = _build_simulation(
+        config, table, run_group=None, target_profit_percent=target_profit_percent
+    )
 
     session.add(simulation)
     session.commit()
     return simulation
 
 
-def run_and_store_group(session: Session, payloads: Sequence[SimulationCreate]) -> list[Simulation]:
+def run_and_store_group(
+    session: Session,
+    payloads: Sequence[SimulationCreate],
+    target_profit_percent: float | None = None,
+) -> list[Simulation]:
     """Simulate every strategy from one form submission and persist them together.
 
     Every `StakingConfig` is built — and can raise, same as `run_and_store` —
     before any row is added, so a rejection leaves nothing half-written. A
     shared `run_group` id is assigned only when there is more than one
     strategy to compare; a single selection behaves exactly like
-    `run_and_store`.
+    `run_and_store`. One `target_profit_percent` for the whole group: it's a
+    shared input, same as capital or the openers, not per-strategy.
     """
     group_id = uuid.uuid4() if len(payloads) > 1 else None
 
@@ -76,7 +95,12 @@ def run_and_store_group(session: Session, payloads: Sequence[SimulationCreate]) 
     # so a rejection never leaves a partial group behind.
     configs = [StakingConfig(**payload.model_dump()) for payload in payloads]
     simulations = [
-        _build_simulation(config, StakingTable.build(config), run_group=group_id)
+        _build_simulation(
+            config,
+            StakingTable.build(config),
+            run_group=group_id,
+            target_profit_percent=target_profit_percent,
+        )
         for config in configs
     ]
 

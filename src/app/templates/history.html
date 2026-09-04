@@ -11,7 +11,7 @@
 
 {% if simulations %}
   <div class="table-scroll">
-    <table class="runs">
+    <table class="runs table-card">
       <caption class="visually-hidden">Stored simulations, newest first.</caption>
       <thead>
         <tr>
@@ -30,11 +30,11 @@
           {% set run_href = "/results/group/" ~ run.run_group if run.run_group else "/results/" ~ run.id %}
           <tr>
             <th scope="row"><a href="{{ run_href }}">#{{ run.id }}</a></th>
-            <td class="figure">{{ run.created_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
-            <td class="num">${{ "%.2f"|format(run.capital) }}</td>
-            <td class="num">{{ "%.2f"|format(run.payout_ratio * 100) }}%</td>
-            <td>{{ strategy_labels.get(run.strategy, run.strategy) }}</td>
-            <td class="num">
+            <td class="figure cell-wide"><span class="cell-label">When</span>{{ run.created_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
+            <td class="num"><span class="cell-label">Capital</span>${{ "%.2f"|format(run.capital) }}</td>
+            <td class="num"><span class="cell-label">Payout</span>{{ "%.2f"|format(run.payout_ratio * 100) }}%</td>
+            <td class="cell-wide"><span class="cell-label">Strategy</span>{{ strategy_labels.get(run.strategy, run.strategy) }}</td>
+            <td class="num"><span class="cell-label">Target</span>
               {%- if run.target_profit_percent -%}
                 {{ "%.0f"|format(run.target_profit_percent) }}%
               {%- elif run.target_profit -%}
@@ -43,8 +43,8 @@
                 &mdash;
               {%- endif -%}
             </td>
-            <td class="num">{{ run.losses_survived }}</td>
-            <td>
+            <td class="num"><span class="cell-label">Survived</span>{{ run.losses_survived }}</td>
+            <td class="cell-wide"><span class="cell-label">Outcome</span>
               {% if run.wall_hit %}
                 <span class="outcome-wall">
                   wall at <span class="figure">${{ "%.2f"|format(run.wall_required_stake) }}</span>,

@@ -7,7 +7,7 @@
 {% endwith %}
 
 <div class="table-scroll">
-  <table class="ladder">
+  <table class="ladder table-card">
     <caption class="visually-hidden">
       Every entry placed, the stake it required, and what remained afterwards.
     </caption>
@@ -25,10 +25,11 @@
       {% for row in ladder %}
         <tr class="band-{{ row.band }}">
           <th scope="row" class="entry">{{ row.label }}</th>
-          <td class="num stake">{{ "%.2f"|format(row.stake) }}</td>
-          <td class="num share">{{ "%.1f"|format(row.share * 100) }}%</td>
-          <td class="num">{{ "%.2f"|format(row.cumulative_loss) }}</td>
+          <td class="num stake"><span class="cell-label">Stake</span>{{ "%.2f"|format(row.stake) }}</td>
+          <td class="num share"><span class="cell-label">Share of balance</span>{{ "%.1f"|format(row.share * 100) }}%</td>
+          <td class="num"><span class="cell-label">Cum. loss</span>{{ "%.2f"|format(row.cumulative_loss) }}</td>
           <td class="num balance-cell{% if row.drawdown_band %} drawdown-{{ row.drawdown_band }}{% endif %}">
+            <span class="cell-label">Balance after</span>
             {{- "%.2f"|format(row.balance) }}
             {%- if row.drawdown_band %}
               <span class="drawdown-note">
@@ -40,7 +41,7 @@
               </span>
             {%- endif %}
           </td>
-          <td class="num">{{ "%.2f"|format(row.balance_if_win) }}</td>
+          <td class="num"><span class="cell-label">If won</span>{{ "%.2f"|format(row.balance_if_win) }}</td>
         </tr>
       {% endfor %}
 

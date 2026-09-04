@@ -15,9 +15,16 @@ from collections.abc import Sequence
 from sqlalchemy.orm import Session, selectinload
 
 from ..domain.staking_simulator import StakingConfig, StakingTable
+from ..log import logger
 from ..models import Simulation, SimulationEntry
 from ..models.queries import live_simulations, soft_delete
 from ..schemas import SimulationCreate
+
+# What a run and a clearing are logged as. The request id, method and path are
+# already bound by the middleware, so nothing here has to be handed them.
+#
+# Read paths log nothing: a run that is absent or cleared is a 404, which the
+# middleware's own line already records.
 
 
 def _build_simulation(
@@ -72,6 +79,17 @@ def run_and_store(
 
     session.add(simulation)
     session.commit()
+
+    logger.info(
+        "simulation.stored",
+        simulation_id=simulation.id,
+        strategy=config.strategy,
+        capital=config.capital,
+        payout_ratio=config.payout_ratio,
+        wall_hit=table.wall_hit,
+        wall_required_stake=table.wall_required_stake,
+        losses_survived=table.losses_survived,
+    )
     return simulation
 
 
@@ -106,6 +124,18 @@ def run_and_store_group(
 
     session.add_all(simulations)
     session.commit()
+
+    # One line for the whole comparison, not one per ladder: the group is what
+    # was submitted, and reading the strategies side by side is the point.
+    logger.info(
+        "simulation.group_stored",
+        run_group=str(group_id) if group_id else None,
+        count=len(simulations),
+        capital=configs[0].capital,
+        payout_ratio=configs[0].payout_ratio,
+        strategies=[config.strategy for config in configs],
+        losses_survived=[simulation.losses_survived for simulation in simulations],
+    )
     return simulations
 
 
@@ -151,6 +181,7 @@ def clear_simulation(session: Session, simulation_id: int) -> bool:
 
     soft_delete(session, simulation)
     session.commit()
+    logger.info("simulation.cleared", scope="one", simulation_id=simulation_id, count=1)
     return True
 
 
@@ -160,6 +191,9 @@ def clear_group(session: Session, run_group: uuid.UUID) -> int:
     for simulation in simulations:
         soft_delete(session, simulation)
     session.commit()
+    logger.info(
+        "simulation.cleared", scope="group", run_group=str(run_group), count=len(simulations)
+    )
     return len(simulations)
 
 
@@ -169,4 +203,5 @@ def clear_all(session: Session) -> int:
     for simulation in simulations:
         soft_delete(session, simulation)
     session.commit()
+    logger.info("simulation.cleared", scope="all", count=len(simulations))
     return len(simulations)

@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     app_name: str = "martingale-wall-simulator"
     log_level: str = "INFO"
 
+    # Console renderer for a terminal, one JSON object per line for a log
+    # platform. The deploy sets this to true; local development leaves it off.
+    log_json: bool = False
+
     # SQLite for the prototype; a Postgres or MySQL URL is the only change in production.
     database_url: str = "sqlite:///./app.db"
 

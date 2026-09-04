@@ -228,6 +228,52 @@ docker compose build api
 Dependencies are always added on the host with `uv add`, never inside a container — a
 container-local install dies with the container and never reaches the lockfile.
 
+## Logging
+
+Structured, key-value logs via [structlog](https://www.structlog.org/), written to stdout and
+nowhere else — no files, no rotation. `LOG_JSON` picks the renderer:
+
+```
+# LOG_JSON unset — a terminal
+2026-09-04T18:26:47Z [info ] http_request  [app.log] duration_ms=16.0 method=POST
+                             path=/simulator request_id=82fcf029a369 status=303
+
+# LOG_JSON=true — a log platform
+{"status":303,"duration_ms":16.0,"event":"http_request","request_id":"82fcf029a369",
+ "path":"/simulator","method":"POST","logger":"app.log","level":"info","timestamp":"…"}
+```
+
+Uvicorn's and SQLAlchemy's own records go through the same formatter, so the stream is one shape
+throughout and a collector can parse every line, not just the application's. The one exception is
+`--reload`: the reloader's supervising process never imports the application, so its own three
+startup lines stay in uvicorn's plain format. Nothing serving traffic runs with `--reload`.
+
+**Every request gets an id.** It is taken from an incoming `X-Request-ID` header when there is one
+— so a proxy's trace id survives — and returned on the response either way. It is bound once, in
+one middleware, and every event logged while the request is in flight carries it along with the
+method and path. A stored run and the request that produced it therefore share an id:
+
+```
+simulation.group_stored  … request_id=82fcf029a369 strategies=['adder_breakeven','double']
+http_request             … request_id=82fcf029a369 status=303
+```
+
+The first line at startup names the database that was actually opened, resolved to an absolute
+path. That is the fastest way to catch the wrong-working-directory failure described above; a
+server URL is logged instead with its password masked.
+
+Uvicorn's own access log is switched off — the `http_request` line above is the same fact with an
+id attached. What gets logged, and what deliberately does not:
+
+| Where | Logs |
+|---|---|
+| middleware | every request: method, path, status, duration, id |
+| `services/` | state changes — runs stored, runs cleared |
+| `web/pages.py` | form rejections (field **names**, never the reader's values) and opener suggestions |
+| `main.py` | the error seam — rejected plans and HTTP errors |
+| `api/v1/routers/` | nothing; the middleware and the service already cover both ends |
+| `domain/` | **nothing, ever** — it imports no third-party library and must stay that way |
+
 ## Storage
 
 SQLite, for the prototype. Rows are **soft-deleted**: clearing the history sets a `deleted_at`

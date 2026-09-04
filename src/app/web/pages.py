@@ -13,6 +13,7 @@ from fastapi.responses import RedirectResponse, Response
 from pydantic import ValidationError
 
 from ..db import SessionDep
+from ..log import logger
 from ..schemas import RawSimulationForm, SimulationForm
 from ..services import simulation_service
 from ..web import bands, form_errors
@@ -98,7 +99,11 @@ def submit_simulator(
     try:
         form = SimulationForm.model_validate(values)
     except ValidationError as exc:
-        return _form(request, values, form_errors.from_validation(exc), rejected=True)
+        errors = form_errors.from_validation(exc)
+        # Field names, never the values. The names are what diagnose a form
+        # that keeps being rejected; the values are the reader's own figures.
+        logger.info("form.rejected", stage="shape", fields=sorted(errors))
+        return _form(request, values, errors, rejected=True)
 
     if submitted.action == "suggest":
         return _suggest_openers(request, values, form)
@@ -112,7 +117,12 @@ def submit_simulator(
             else None,
         )
     except ValueError as exc:
-        return _form(request, values, form_errors.from_domain(exc, values), rejected=True)
+        errors = form_errors.from_domain(exc, values)
+        # This arm catches the domain rejection, so `plan.rejected` in main.py
+        # never fires for a form submission. Without this line the HTML surface
+        # would record nothing at all.
+        logger.info("form.rejected", stage="plan", fields=sorted(errors), detail=str(exc))
+        return _form(request, values, errors, rejected=True)
 
     # One strategy behaves exactly as a single run always has. More than one
     # redirects to the comparison view instead of the individual result.
@@ -127,6 +137,15 @@ def _suggest_openers(request: Request, values: dict[str, Any], form: SimulationF
     seize: the reader can still override the filled-in values before actually
     submitting."""
     calc = bands.opener_derivation(form.target_profit, form.payout_percent / 100, form.opener_count)
+    # A None `calc` is a real state, not a failure: no target was set, so no
+    # opener could be derived and the dialog says exactly that.
+    logger.info(
+        "openers.suggested",
+        target_profit=form.target_profit,
+        opener_count=form.opener_count,
+        opener=calc.opener if calc is not None else None,
+    )
+
     if calc is not None:
         values = {**values, "entry_1a": str(calc.opener)}
         if form.opener_count == 2:

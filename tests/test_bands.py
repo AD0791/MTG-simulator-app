@@ -1,4 +1,4 @@
-"""Unit tests for `web/bands.py` — no HTTP round trip.
+"""Unit tests for `services/bands.py` — no HTTP round trip.
 
 Flagged in the roadmap as untested since before `opener_badge` existed; adding
 real logic to the module is the moment to stop deferring it.
@@ -8,7 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.web.bands import (
+from app.domain.staking_simulator import InvalidStakingConfig
+from app.services.bands import (
     band_for,
     drawdown_band_for,
     ladder,
@@ -97,6 +98,18 @@ def test_suggested_opener_is_none_at_zero_or_negative_target() -> None:
     caller falls back to the reader's own values instead."""
     assert suggested_opener(0.0, 0.92) is None
     assert suggested_opener(-5.0, 0.92) is None
+
+
+@pytest.mark.parametrize("payout_ratio", [0.0, -0.5, 1.5])
+@pytest.mark.parametrize("target", [0.0, 50.0])
+def test_an_impossible_payout_is_refused_before_anything_divides_by_it(
+    payout_ratio: float, target: float
+) -> None:
+    """The domain's own payout rule, not a second copy — checked before the
+    target, so a zero payout is refused whether or not a target is set."""
+    with pytest.raises(InvalidStakingConfig) as caught:
+        opener_derivation(target, payout_ratio)
+    assert caught.value.field == "payout_ratio"
 
 
 def test_opener_derivation_matches_the_roadmaps_worked_example() -> None:

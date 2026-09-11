@@ -387,6 +387,29 @@ async def test_an_impossible_payout_is_reported_in_the_forms_own_units(
     assert "no more than 100%" in response.text
 
 
+async def test_suggest_at_a_zero_payout_is_reported_rather_than_crashing(
+    client: AsyncClient,
+) -> None:
+    """Suggest divides by the payout. At 0% it raised ZeroDivisionError and
+    returned 500; the domain's payout rule now refuses it beside the field."""
+    response = await client.post(
+        "/simulator",
+        data={
+            **REFERENCE_FORM,
+            "payout_percent": "0",
+            "target_profit_percent": "5",
+            "action": "suggest",
+        },
+    )
+
+    assert response.status_code == 422
+    body = response.text
+    assert 'id="payout_percent-error"' in body
+    assert "above 0%" in body
+    assert '<dialog class="calc-modal" open>' not in body
+    assert 'value="28"' not in body  # nothing was suggested into the openers
+
+
 async def test_an_advanced_field_error_opens_the_advanced_panel(client: AsyncClient) -> None:
     """max_entries is the one remaining field under Advanced; target_profit_percent
     moved to the primary set in item 4 and no longer exercises this."""

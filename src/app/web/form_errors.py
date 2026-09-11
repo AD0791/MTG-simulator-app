@@ -10,17 +10,27 @@ from collections.abc import Mapping
 
 from pydantic import ValidationError
 
-# The domain names the field it rejected, except for the one message that covers
-# both manual entries at once.
-_ENTRY_FIELDS = ("entry_1a", "entry_1b")
+from ..domain.staking_simulator import InvalidStakingConfig
 
-# The form asks for a payout percentage; the domain rejects a ratio. Same single
-# check, restated in the units the reader typed.
-_PAYOUT_MESSAGE = "Payout must be above 0% and no more than 100%."
+# Where the form names a field differently from the domain, because it asks in
+# different units (a percentage) or collects several values (checkboxes).
+_FORM_FIELD = {
+    "payout_ratio": "payout_percent",
+    "target_profit": "target_profit_percent",
+    "strategy": "strategies",
+}
 
-# Same pattern for the target: the form asks for a percentage of capital, the
-# domain rejects an absolute dollar amount that resolved negative.
-_TARGET_PROFIT_MESSAGE = "Target profit can't be negative."
+# The domain's refusal, restated in the form's own terms. The rule is not restated.
+_MESSAGE = {
+    "capital": "Capital must be positive.",
+    "entry_1a": "Enter an amount above zero.",
+    "entry_1b": "Enter an amount above zero.",
+    "payout_percent": "Payout must be above 0% and no more than 100%.",
+    "target_profit_percent": "Target profit can't be negative.",
+    # Reachable only by a hand-crafted request — the checkboxes only ever
+    # post the names the template itself renders.
+    "strategies": "Choose a valid strategy.",
+}
 
 
 def from_validation(exc: ValidationError) -> dict[str, str]:
@@ -44,39 +54,14 @@ def _readable(error: Mapping[str, object]) -> str:
             return str(error.get("msg", "Invalid value."))
 
 
-def from_domain(exc: ValueError, submitted: Mapping[str, str]) -> dict[str, str]:
-    """Field messages for a plan the simulator refused to run."""
-    message = str(exc)
+def from_domain(exc: ValueError) -> dict[str, str]:
+    """Field messages for a plan the simulator refused to run.
 
-    if "payout_ratio" in message:
-        return {"payout_percent": _PAYOUT_MESSAGE}
-    if "capital" in message:
-        return {"capital": message.capitalize() + "."}
-    if "target_profit" in message:
-        return {"target_profit_percent": _TARGET_PROFIT_MESSAGE}
-    if "must all be positive" in message:
-        return {_offending_entry(submitted): "Enter an amount above zero."}
-    if "strategy must be one of" in message:
-        # Reachable only by a hand-crafted request — the checkboxes only ever
-        # post the names the template itself renders.
-        return {"strategies": "Choose a valid strategy."}
-    return {"__form__": message}
-
-
-def _offending_entry(submitted: Mapping[str, str]) -> str:
-    """Which manual entry the domain was objecting to.
-
-    The domain rejects them with one shared message, so the field is identified
-    by looking at what was submitted — not by re-checking the rule. When one
-    opener was requested, `entry_1b` is ignored server-side and must not be
-    checked here either — a blank, ignored field would otherwise become the
-    field the error points at.
+    The domain names the field it refused, so nothing here reads the message
+    text to find it. A single-opener plan reaches the domain with `entry_1b` as
+    None, which is never checked — so an error can't point at the hidden field.
     """
-    fields = _ENTRY_FIELDS if submitted.get("opener_count") != "1" else ("entry_1a",)
-    for field in fields:
-        try:
-            if float(submitted.get(field, "")) <= 0:
-                return field
-        except ValueError:
-            continue
-    return "entry_1a"
+    if not isinstance(exc, InvalidStakingConfig):
+        return {"__form__": str(exc)}
+    field = _FORM_FIELD.get(exc.field, exc.field)
+    return {field: _MESSAGE.get(field, str(exc))}

@@ -50,6 +50,29 @@ STRATEGIES: Dict[str, Callable[[float, float, float], float]] = {
 }
 
 
+class InvalidStakingConfig(ValueError):
+    """A plan the simulator refuses to run.
+
+    `field` names the StakingConfig field at fault, so a caller can point at
+    the right input without reading the message text to find it.
+    """
+
+    def __init__(self, field_name: str, message: str) -> None:
+        super().__init__(message)
+        self.field = field_name
+
+
+def check_payout_ratio(payout_ratio: float) -> None:
+    """The one payout rule: a ratio in (0, 1].
+
+    A function of its own so that anything dividing by a payout without
+    building a whole plan -- sizing the openers to a target -- refuses an
+    impossible one by this rule rather than a second copy of it.
+    """
+    if not (0 < payout_ratio <= 1):
+        raise InvalidStakingConfig("payout_ratio", "payout_ratio must be between 0 and 1")
+
+
 @dataclass
 class StakingConfig:
     capital: float = 1000.0
@@ -61,16 +84,21 @@ class StakingConfig:
     strategy: str = "adder_profit"   # one of STRATEGIES
 
     def __post_init__(self):
+        # One refusal per field, first failure wins. entry_1b is checked only
+        # when it exists -- a single-opener plan never has it blamed.
         if self.capital <= 0:
-            raise ValueError("capital must be positive")
-        if self.entry_1a <= 0 or (self.entry_1b is not None and self.entry_1b <= 0):
-            raise ValueError("entry_1a and entry_1b must all be positive")
-        if not (0 < self.payout_ratio <= 1):
-            raise ValueError("payout_ratio must be between 0 and 1")
+            raise InvalidStakingConfig("capital", "capital must be positive")
+        if self.entry_1a <= 0:
+            raise InvalidStakingConfig("entry_1a", "entry_1a must be positive")
+        if self.entry_1b is not None and self.entry_1b <= 0:
+            raise InvalidStakingConfig("entry_1b", "entry_1b must be positive")
+        check_payout_ratio(self.payout_ratio)
         if self.target_profit < 0:
-            raise ValueError("target_profit cannot be negative")
+            raise InvalidStakingConfig("target_profit", "target_profit cannot be negative")
         if self.strategy not in STRATEGIES:
-            raise ValueError(f"strategy must be one of {', '.join(STRATEGIES)}")
+            raise InvalidStakingConfig(
+                "strategy", f"strategy must be one of {', '.join(STRATEGIES)}"
+            )
 
 
 @dataclass

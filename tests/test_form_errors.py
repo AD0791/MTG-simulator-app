@@ -1,33 +1,53 @@
-"""Unit tests for `_offending_entry` — no HTTP round trip.
+"""Unit tests for `web/form_errors.py` — no HTTP round trip.
 
-`web/bands.py` and `web/form_errors.py` had zero direct coverage before this;
-`_offending_entry`'s behaviour changed when `second_entry` was dropped from the
-manual entries (roadmap item 0), which is the moment to stop deferring it.
+The domain names the field it refused (`InvalidStakingConfig.field`); these pin
+where each refusal lands on the form and how it is phrased there.
 """
 
-from app.web.form_errors import _offending_entry
+import pytest
+
+from app.domain.staking_simulator import StakingConfig
+from app.web.form_errors import from_domain
 
 
-def test_offending_entry_names_entry_1a_when_it_is_the_offender() -> None:
-    assert _offending_entry({"entry_1a": "0", "entry_1b": "5"}) == "entry_1a"
+def _rejection(**fields: object) -> ValueError:
+    with pytest.raises(ValueError) as caught:
+        StakingConfig(**fields)
+    return caught.value
 
 
-def test_offending_entry_names_entry_1b_when_it_is_the_offender() -> None:
-    assert _offending_entry({"entry_1a": "5", "entry_1b": "-3"}) == "entry_1b"
+@pytest.mark.parametrize(
+    ("fields", "expected"),
+    [
+        ({"capital": 0.0}, {"capital": "Capital must be positive."}),
+        ({"entry_1a": 0.0}, {"entry_1a": "Enter an amount above zero."}),
+        ({"entry_1b": -3.0}, {"entry_1b": "Enter an amount above zero."}),
+        (
+            {"payout_ratio": 1.5},
+            {"payout_percent": "Payout must be above 0% and no more than 100%."},
+        ),
+        ({"target_profit": -1.0}, {"target_profit_percent": "Target profit can't be negative."}),
+        ({"strategy": "triple"}, {"strategies": "Choose a valid strategy."}),
+    ],
+)
+def test_a_domain_rejection_lands_on_the_form_field_it_names(
+    fields: dict[str, object], expected: dict[str, str]
+) -> None:
+    assert from_domain(_rejection(**fields)) == expected
 
 
-def test_offending_entry_prefers_entry_1a_when_both_are_non_positive() -> None:
-    assert _offending_entry({"entry_1a": "0", "entry_1b": "0"}) == "entry_1a"
+def test_both_entries_non_positive_points_at_entry_1a_first() -> None:
+    assert from_domain(_rejection(entry_1a=0.0, entry_1b=0.0)) == {
+        "entry_1a": "Enter an amount above zero."
+    }
 
 
-def test_offending_entry_skips_a_non_numeric_value_rather_than_blaming_it() -> None:
-    """A value that fails to parse isn't the domain's complaint — the schema
-    already would have rejected it before the domain ever saw a plan."""
-    assert _offending_entry({"entry_1a": "not a number", "entry_1b": "-1"}) == "entry_1b"
+def test_a_single_opener_plan_is_never_blamed_on_entry_1b() -> None:
+    """With one opener the domain sees `entry_1b=None` and never checks it."""
+    assert from_domain(_rejection(entry_1a=0.0, entry_1b=None)) == {
+        "entry_1a": "Enter an amount above zero."
+    }
 
 
-def test_offending_entry_falls_back_to_entry_1a() -> None:
-    """Reached only if the domain raised "must all be positive" but neither
-    submitted value actually parses as non-positive — should not happen, but
-    the fallback must still name a primary field, not the retired one."""
-    assert _offending_entry({"entry_1a": "5", "entry_1b": "5"}) == "entry_1a"
+def test_a_rejection_naming_no_field_is_reported_on_the_form_itself() -> None:
+    assert from_domain(ValueError("something else")) == {"__form__": "something else"}

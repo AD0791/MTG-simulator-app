@@ -15,8 +15,8 @@ from pydantic import ValidationError
 from ..db import SessionDep
 from ..log import logger
 from ..schemas import RawSimulationForm, SimulationForm
-from ..services import simulation_service
-from ..web import bands, form_errors
+from ..services import bands, simulation_service
+from ..web import form_errors
 from ..web.templates import templates
 
 router = APIRouter(include_in_schema=False)
@@ -108,16 +108,14 @@ def submit_simulator(
     if submitted.action == "suggest":
         return _suggest_openers(request, values, form)
 
+    # The same conversion `POST /api/v1/run-groups` receives already made.
+    plan = form.to_plan()
     try:
         simulations = simulation_service.run_and_store_group(
-            session,
-            form.to_creates(),
-            target_profit_percent=form.target_profit_percent
-            if form.target_profit_percent > 0
-            else None,
+            session, plan.to_creates(), target_profit_percent=plan.recorded_target_percent
         )
     except ValueError as exc:
-        errors = form_errors.from_domain(exc, values)
+        errors = form_errors.from_domain(exc)
         # This arm catches the domain rejection, so `plan.rejected` in main.py
         # never fires for a form submission. Without this line the HTML surface
         # would record nothing at all.
@@ -136,7 +134,17 @@ def _suggest_openers(request: Request, values: dict[str, Any], form: SimulationF
     a dialog. Never runs a plan or touches the database — suggest, don't
     seize: the reader can still override the filled-in values before actually
     submitting."""
-    calc = bands.opener_derivation(form.target_profit, form.payout_percent / 100, form.opener_count)
+    try:
+        calc = bands.opener_derivation(
+            form.target_profit, form.payout_percent / 100, form.opener_count
+        )
+    except ValueError as exc:
+        # Suggest builds no plan, but it divides by the payout, so an impossible
+        # one is refused by the domain's payout rule — reported beside the field,
+        # exactly as a Run would report it, instead of a 500.
+        errors = form_errors.from_domain(exc)
+        logger.info("form.rejected", stage="suggest", fields=sorted(errors), detail=str(exc))
+        return _form(request, values, errors, rejected=True)
     # A None `calc` is a real state, not a failure: no target was set, so no
     # opener could be derived and the dialog says exactly that.
     logger.info(

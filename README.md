@@ -118,15 +118,29 @@ declared once, in `api/v1/__init__.py`, and never inside a route.
 | Endpoint | Body in | Out |
 |---|---|---|
 | `GET /api/v1/health` | — | `200` · `{status, app}` |
-| `POST /api/v1/simulations` | `SimulationCreate` — one strategy, absolute dollars | `201` · `SimulationRead` (inputs, verdict, full ladder) |
+| `POST /api/v1/simulations` | `SimulationCreate` — one strategy, absolute dollars | `201` · `SimulationRead` (inputs, verdict, banded ladder, opener badge) |
 | `GET /api/v1/simulations` | — | `200` · `SimulationSummary[]`, newest first |
+| `DELETE /api/v1/simulations` | — | `204` · every live run soft-deleted |
 | `GET /api/v1/simulations/{id}` | — | `200` · `SimulationRead`, or `404` |
 | `DELETE /api/v1/simulations/{id}` | — | `204` · soft-deleted, or `404` |
+| `POST /api/v1/run-groups` | `RunGroupCreate` — one or more strategies, target as % of capital | `201` · `RunGroupRead`; `run_group` is null for one strategy |
+| `GET /api/v1/run-groups/{run_group}` | — | `200` · `RunGroupRead` in submission order, or `404` |
+| `DELETE /api/v1/run-groups/{run_group}` | — | `204` · every run in it soft-deleted, or `404` |
+| `GET /api/v1/ladders?…` | `SimulationCreate`'s fields, as query parameters | `200` · `LadderRead` — simulated, **not stored** |
+| `GET /api/v1/openers/badge?…` | `capital`, `entry_1a`, `entry_1b` (omit for one opener), `payout_ratio`, `target_profit_percent` | `200` · `OpenerBadgeRead` |
+| `GET /api/v1/openers/suggestion?…` | `capital`, `payout_ratio`, `target_profit_percent`, `opener_count` | `200` · `{derivation}`, null without a target |
+| `GET /api/v1/strategies` | — | `200` · `[{name, label}]` in form order |
 
 Every field of `SimulationCreate` is optional and defaults to `StakingConfig`'s own, so a body need
-only carry what it changes. Two things differ from the form: the API takes a **payout ratio and an
-absolute target profit**, not percentages, and it submits **one strategy per request** — so
-`run_group` is always null on a run made this way.
+only carry what it changes. It takes a **payout ratio and an absolute target profit** and runs
+**one strategy**, so `run_group` is null on a run made this way. `POST /run-groups` is the JSON form
+of a simulator submission — one plan, one or more strategies, the target as a percentage of capital
+— and the page reaches the service through the same conversion (`SimulationForm.to_plan()`).
+
+Responses are view models, not rows. Every ladder entry carries its exposure `share` and `band`, its
+`drawdown`, `drawdown_band` and `recovery_gain`; a run carries its `wall_share` and `opener_badge`.
+They are classified once, in `services/bands.py`, by the same functions the pages use — so a client
+renders them and restates no threshold.
 
 ```mermaid
 sequenceDiagram
@@ -162,9 +176,13 @@ sequenceDiagram
     A-->>C: 404 application/problem+json
 ```
 
-Every 4xx is an RFC 9457 problem detail, served as `application/problem+json`. There is exactly one
-place a domain rejection becomes an HTTP status — the handler registered in `main.py` — so no route
-re-implements the plan's rules or catches `ValueError` on its own.
+Every 4xx under `/api/` is an RFC 9457 problem detail served as `application/problem+json` — an
+impossible plan, a malformed request, an unknown id, an unknown path, a wrong method. A problem
+about fields carries an `errors` extension member, `[{field, detail}]`: the request's own field name
+for a malformed request, or the `StakingConfig` field the domain refused, which it names on
+`InvalidStakingConfig.field`. There is exactly one place a domain rejection becomes an HTTP status —
+the handler registered in `main.py` — so no route re-implements the plan's rules or catches
+`ValueError` on its own.
 
 **A note on the one v1 contract break so far.** Dropping the hand-supplied second entry (above)
 removed `second_entry` from `SimulationSummary`, the v1 response shape, without cutting a v2. That

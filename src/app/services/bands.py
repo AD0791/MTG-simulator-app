@@ -14,7 +14,8 @@ down past half. The drawdown ramp only starts at 50%, the point where
 recovering costs more than the loss did, so a typical ladder stays uncoloured
 until abruptly, near the wall, it isn't.
 
-The template receives band names and the raw numbers. Colour only reinforces
+The HTML templates and the JSON API (`services/presentation.py`) both receive
+band names and the raw numbers, classified here once. Colour only reinforces
 what the printed figures already say.
 """
 
@@ -22,11 +23,12 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
-from ..domain.staking_simulator import StakingConfig, StakingTable
+from ..domain.staking_simulator import StakingConfig, StakingTable, check_payout_ratio
 from ..models import Simulation, SimulationEntry
+from ..schemas.simulation import Band, DrawdownBand
 
 # Lower bound of each band, highest first.
-BANDS = (
+BANDS: tuple[tuple[float, Band], ...] = (
     (0.50, "danger"),
     (0.25, "elevated"),
     (0.10, "caution"),
@@ -36,7 +38,7 @@ BANDS = (
 # left uncoloured). Recovering a drawdown needs a *larger* gain than the loss
 # that caused it, so the thresholds are spaced across `gain = drawdown / (1 -
 # drawdown)`, not evenly: 50% needs +100%, 90% needs +900%.
-DRAWDOWN_BANDS = (
+DRAWDOWN_BANDS: tuple[tuple[float, DrawdownBand], ...] = (
     (0.90, "terminal"),
     (0.80, "critical"),
     (0.65, "severe"),
@@ -51,14 +53,14 @@ STRATEGY_LABELS = {
 }
 
 
-def band_for(share: float) -> str:
+def band_for(share: float) -> Band:
     for threshold, name in BANDS:
         if share >= threshold:
             return name
     return "calm"
 
 
-def drawdown_band_for(drawdown: float) -> str | None:
+def drawdown_band_for(drawdown: float) -> DrawdownBand | None:
     """None below 50% — the cell stays uncoloured, not just "calm"; colour
     below the floor would be crying wolf, per the roadmap's own framing."""
     for threshold, name in DRAWDOWN_BANDS:
@@ -88,9 +90,9 @@ class LadderRow:
     balance: float
     balance_if_win: float
     share: float
-    band: str
+    band: Band
     drawdown: float
-    drawdown_band: str | None
+    drawdown_band: DrawdownBand | None
     recovery_gain: float | None
 
 
@@ -195,7 +197,11 @@ def suggested_opener(
     None when there is no target to clear — a zero or negative target derives
     a zero or negative opener, which the domain rightly rejects, so the form
     falls back to whatever the reader already typed rather than seizing it.
+
+    An impossible payout raises the domain's own `InvalidStakingConfig` before
+    anything divides by it, whether or not there is a target.
     """
+    check_payout_ratio(payout_ratio)
     if target_profit <= 0:
         return None
     return math.ceil(target_profit / (opener_count * payout_ratio))
@@ -251,19 +257,17 @@ def opener_derivation(
 REFERENCE_CONFIG = StakingConfig(capital=1000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92)
 
 
-def worked_example(strategy: str = "adder_profit") -> tuple[list[LadderRow], WallRow | None]:
-    """The reference case, run under any strategy — same capital and openers,
-    so the landing page can show more than one method side by side."""
-    table = StakingTable.build(replace(REFERENCE_CONFIG, strategy=strategy))
+def table_ladder(table: StakingTable) -> tuple[list[LadderRow], WallRow | None]:
+    """A freshly built table, prepared for display without being stored."""
+    capital = table.config.capital
     rows = [
-        _row(
-            r.label,
-            r.stake,
-            r.cumulative_loss,
-            r.balance,
-            r.balance_if_win,
-            REFERENCE_CONFIG.capital,
-        )
+        _row(r.label, r.stake, r.cumulative_loss, r.balance, r.balance_if_win, capital)
         for r in table.rows
     ]
     return rows, _wall(table.wall_required_stake, table.wall_balance_available)
+
+
+def worked_example(strategy: str = "adder_profit") -> tuple[list[LadderRow], WallRow | None]:
+    """The reference case, run under any strategy — same capital and openers,
+    so the landing page can show more than one method side by side."""
+    return table_ladder(StakingTable.build(replace(REFERENCE_CONFIG, strategy=strategy)))

@@ -6,7 +6,7 @@ and is the regression case for the whole project.
 
 import pytest
 
-from app.domain.staking_simulator import StakingConfig, StakingTable
+from app.domain.staking_simulator import InvalidStakingConfig, StakingConfig, StakingTable
 
 REFERENCE = {
     "capital": 1000.0,
@@ -120,7 +120,7 @@ def test_non_positive_capital_is_rejected(capital: float) -> None:
 @pytest.mark.parametrize("field", ["entry_1a", "entry_1b"])
 @pytest.mark.parametrize("value", [0.0, -5.0])
 def test_non_positive_entries_are_rejected(field: str, value: float) -> None:
-    with pytest.raises(ValueError, match="must all be positive"):
+    with pytest.raises(ValueError, match=f"{field} must be positive"):
         StakingConfig(**{field: value})
 
 
@@ -232,8 +232,20 @@ def test_single_opener_places_more_entries_but_ends_with_less_cushion() -> None:
     assert one_opener.wall_balance_available < two_openers.wall_balance_available
 
 
-def test_non_positive_entry_1b_still_rejected_with_unchanged_message() -> None:
-    """The message is load-bearing — `form_errors.py` substring-matches it and
-    must keep working whether entry_1b is a real value or None."""
-    with pytest.raises(ValueError, match="entry_1a and entry_1b must all be positive"):
-        StakingConfig(**{**REFERENCE, "entry_1b": -5.0})
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("capital", 0.0),
+        ("entry_1a", 0.0),
+        ("entry_1b", -5.0),
+        ("payout_ratio", 1.5),
+        ("target_profit", -1.0),
+        ("strategy", "triple"),
+    ],
+)
+def test_every_rejection_names_the_field_it_refused(field: str, value: object) -> None:
+    """`field` is load-bearing — `web/form_errors.py` and the API's problem
+    response point at an input with it, instead of matching message text."""
+    with pytest.raises(InvalidStakingConfig) as caught:
+        StakingConfig(**{**REFERENCE, field: value})
+    assert caught.value.field == field

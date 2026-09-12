@@ -4,6 +4,9 @@ These assert that each page renders and that the form behaves, not that the
 arithmetic is right; `test_domain.py` owns that.
 """
 
+import os
+import re
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -497,3 +500,23 @@ async def test_the_current_page_is_marked_in_the_nav(client: AsyncClient) -> Non
     response = await client.get("/simulator")
 
     assert 'href="/simulator" aria-current="page"' in response.text
+
+
+async def test_the_stylesheet_url_changes_when_the_stylesheet_does(client: AsyncClient) -> None:
+    # Pretend app.css was just edited, and check the page now links to a new URL.
+    # If the URL stayed the same, browsers could keep showing the old stylesheet.
+    from app.web.templates import STATIC_DIR
+
+    stylesheet = STATIC_DIR / "css" / "app.css"
+    before = (await client.get("/history")).text
+    stat = stylesheet.stat()
+    try:
+        os.utime(stylesheet, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+        after = (await client.get("/history")).text
+    finally:
+        os.utime(stylesheet, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+
+    link = re.compile(r'href="[^"]*/css/app\.css\?v=(\d+)"')
+    old, new = link.search(before), link.search(after)
+    assert old and new
+    assert old.group(1) != new.group(1)

@@ -720,8 +720,13 @@ td.drawdown-terminal .drawdown-note { color: var(--drawdown-terminal); }
   letter-spacing: .04em;
   text-transform: uppercase;
 }
-.runs thead th.num { text-align: right; }
+/* Numbers sit on the right, under their headers. The `.runs td` rule above
+   was overriding the site-wide right alignment for numbers, so say it here. */
+.runs th.num, .runs td.num { text-align: right; }
 .runs tbody tr:nth-child(even) { background: rgb(255 255 255 / 2%); }
+/* If the timestamp has to wrap, put the time under the date. Without this the
+   browser splits the date itself at its dashes ("2026-" / "09-" / "04"). */
+.stamp span { white-space: nowrap; }
 .runs .outcome-wall { color: var(--danger); }
 .runs .outcome-clear { color: var(--calm); }
 
@@ -741,82 +746,102 @@ td.drawdown-terminal .drawdown-note { color: var(--drawdown-terminal); }
    implicit table roles, which is why the column headers are repeated in the
    DOM as `.cell-label` — in card mode those labels are what a screen reader
    reads, and above 48rem they are removed and the real `<thead>` takes over.
+
+   The card rules only apply on narrow screens (inside the media query below).
+   They used to apply everywhere and then get switched off again for wide
+   screens, but one of the "switch off" rules was weaker than the rule it was
+   meant to cancel. On desktop every cell stayed a card line, so the browser
+   piled them all into the "When" column. Limiting the card rules to narrow
+   screens means there is nothing to switch off.
 */
-.table-card { display: block; }
-.table-card thead { display: none; }
-.table-card tbody { display: block; }
-.table-card th, .table-card td { display: block; }
 
-.table-card tbody tr {
-  margin-bottom: var(--s3);
-  border: 1px solid var(--border);
-  border-left-width: 3px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  overflow: hidden;
-}
-.table-card tbody tr:last-child { margin-bottom: 0; }
-/* The zebra exists to keep long rows trackable; separated cards do that job
-   themselves, and a tinted card reads as a state the row does not have. */
-.table-card tbody tr:nth-child(even) { background: var(--surface); }
+/* The small per-cell labels are only needed when the real header row is
+   hidden, which is card mode. */
+.cell-label { display: none; }
 
-/* The row header is the card's title bar. */
-.table-card tbody th[scope="row"] {
-  padding: var(--s2) var(--s3);
-  background: var(--raised);
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-}
-
-/* Every other cell is one label/value line. */
-.table-card tbody td {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s3);
-  padding: var(--s2) var(--s3);
-  border-bottom: 1px solid var(--border);
-  white-space: normal;
-}
-.table-card tbody tr td:last-child { border-bottom: 0; }
-
-.cell-label {
-  color: var(--muted);
-  font-family: var(--font-prose);
-  font-size: .7rem;
-  font-weight: 600;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-
-/* The recovery note takes its own line under the balance it qualifies. */
-.table-card .drawdown-note { flex-basis: 100%; text-align: right; margin-top: 0; }
-
-/* The wall is a statement, not a label/value pair. */
-.table-card tbody td.wall-reason { display: block; text-align: left; }
-
-/* History lists up to 100 runs, so one field per line is a 37-screen page.
-   Its cells pair two to a row instead — nothing hidden, a third of the
-   height. The ladder keeps one field per line on purpose: it is 8 rows, not
-   100, and its figures are read down a column against each other.
-
-   The four short figures pair up; a timestamp, a strategy name and the
-   outcome sentence take the full width, because half of 343px wraps them onto
-   a second line and leaves a ragged hole beside them. */
-.runs.table-card tbody tr { display: grid; grid-template-columns: 1fr 1fr; }
-.runs.table-card tbody th[scope="row"],
-.runs.table-card tbody td.cell-wide { grid-column: 1 / -1; }
-.runs.table-card tbody td { border-bottom: 1px solid var(--border); }
-
-/* Card mode makes the whole title bar the tap target, which is how the
-   history link clears the 44px floor — it measured 16px as a bare "#13". */
+/* Keep the run link easy to tap (44px tall), even when it's in a table. */
 .table-card tbody th[scope="row"] a {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   min-height: 44px;
-  margin: calc(var(--s2) * -1) calc(var(--s3) * -1);
-  padding: var(--s2) var(--s3);
+}
+
+@media (width < 48rem) {
+  .table-card { display: block; }
+  .table-card thead { display: none; }
+  .table-card tbody { display: block; }
+  .table-card th, .table-card td { display: block; }
+
+  .table-card tbody tr {
+    margin-bottom: var(--s3);
+    border: 1px solid var(--border);
+    border-left-width: 3px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .table-card tbody tr:last-child { margin-bottom: 0; }
+  /* The zebra exists to keep long rows trackable; separated cards do that job
+     themselves, and a tinted card reads as a state the row does not have. */
+  .table-card tbody tr:nth-child(even) { background: var(--surface); }
+
+  /* The row header is the card's title bar. */
+  .table-card tbody th[scope="row"] {
+    padding: var(--s2) var(--s3);
+    background: var(--raised);
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+
+  /* Every other cell is one label/value line. */
+  .table-card tbody td {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s3);
+    padding: var(--s2) var(--s3);
+    border-bottom: 1px solid var(--border);
+    white-space: normal;
+  }
+  .table-card tbody tr td:last-child { border-bottom: 0; }
+
+  .cell-label {
+    display: inline;
+    color: var(--muted);
+    font-family: var(--font-prose);
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  /* The recovery note takes its own line under the balance it qualifies. */
+  .table-card .drawdown-note { flex-basis: 100%; text-align: right; margin-top: 0; }
+
+  /* The wall is a statement, not a label/value pair. */
+  .table-card tbody td.wall-reason { display: block; text-align: left; }
+
+  /* History lists up to 100 runs, so one field per line is a 37-screen page.
+     Its cells pair two to a row instead — nothing hidden, a third of the
+     height. The ladder keeps one field per line on purpose: it is 8 rows, not
+     100, and its figures are read down a column against each other.
+
+     The four short figures pair up; a timestamp, a strategy name and the
+     outcome sentence take the full width, because half of 343px wraps them
+     onto a second line and leaves a ragged hole beside them. */
+  .runs.table-card tbody tr { display: grid; grid-template-columns: 1fr 1fr; }
+  .runs.table-card tbody th[scope="row"],
+  .runs.table-card tbody td.cell-wide { grid-column: 1 / -1; }
+  .runs.table-card tbody td { border-bottom: 1px solid var(--border); }
+
+  /* Card mode makes the whole title bar the tap target, which is how the
+     history link clears the 44px floor — it measured 16px as a bare "#13". */
+  .table-card tbody th[scope="row"] a {
+    display: flex;
+    margin: calc(var(--s2) * -1) calc(var(--s3) * -1);
+    padding: var(--s2) var(--s3);
+  }
 }
 
 .empty {
@@ -859,41 +884,10 @@ td.drawdown-terminal .drawdown-note { color: var(--drawdown-terminal); }
     background: var(--surface);
   }
 
-  /* There is width for the real table again, so undo the card reflow. */
-  .table-card { display: table; width: 100%; }
-  .table-card thead { display: table-header-group; }
-  .table-card tbody { display: table-row-group; }
-  .table-card th, .table-card td { display: table-cell; }
-  .table-card tbody tr {
-    display: table-row;
-    margin: 0;
-    border: 0;
-    border-left: 3px solid transparent;
-    border-radius: 0;
-    background: none;
-    overflow: visible;
-  }
-  /* More specific than the reset above, so it needs undoing by name. */
-  .runs.table-card tbody tr { display: table-row; }
-  .table-card tbody tr:nth-child(even) { background: rgb(255 255 255 / 2%); }
-  .table-card tbody th[scope="row"] { background: none; border-bottom: 1px solid var(--border); }
-  /* Back to a cell, but still a 44px target — 768px is a tablet, and the
-     floor is about fingers, not about width. */
-  .table-card tbody th[scope="row"] a {
-    display: inline-flex;
-    min-height: 44px;
-    margin: 0;
-    padding: 0;
-  }
-  .table-card tbody td { border-bottom: 1px solid var(--border); }
-  /* These two are more specific than the generic reset above, so they need
-     undoing by name — a `display: block` cell would otherwise stay block
-     inside a real table row and quietly distort every column width. */
-  .table-card tbody td.wall-reason { display: table-cell; }
-  .table-card tbody tr td:last-child { border-bottom: 1px solid var(--border); }
-  .table-card .drawdown-note { text-align: inherit; margin-top: 2px; }
-  /* The real column headers are back, so the repeated ones would be read twice. */
-  .cell-label { display: none; }
+  /* On tablet widths the eight history columns don't fit with full padding,
+     and the Outcome column got pushed off the edge. Slightly smaller padding
+     makes them fit; the full padding returns on wide screens (72rem). */
+  .runs th, .runs td { padding: var(--s3); }
 
   .ladder { font-size: .9rem; }
   .ladder th, .ladder td { padding: var(--s3) var(--s4); white-space: nowrap; }
@@ -911,4 +905,5 @@ td.drawdown-terminal .drawdown-note { color: var(--drawdown-terminal); }
 @media (min-width: 72rem) {
   h1 { font-size: 2.25rem; }
   .stats { gap: var(--s4); }
+  .runs th, .runs td { padding: var(--s3) var(--s4); }
 }

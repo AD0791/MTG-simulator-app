@@ -30,7 +30,7 @@
           {% set run_href = "/results/group/" ~ run.run_group if run.run_group else "/results/" ~ run.id %}
           <tr>
             <th scope="row"><a href="{{ run_href }}">#{{ run.id }}</a></th>
-            <td class="figure cell-wide"><span class="cell-label">When</span>{{ run.created_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
+            <td class="figure cell-wide"><span class="cell-label">When</span><time class="stamp" datetime="{{ run.created_at.isoformat(timespec="seconds") }}"><span>{{ run.created_at.strftime("%Y-%m-%d") }}</span> <span>{{ run.created_at.strftime("%H:%M") }} UTC</span></time></td>
             <td class="num"><span class="cell-label">Capital</span>${{ "%.2f"|format(run.capital) }}</td>
             <td class="num"><span class="cell-label">Payout</span>{{ "%.2f"|format(run.payout_ratio * 100) }}%</td>
             <td class="cell-wide"><span class="cell-label">Strategy</span>{{ strategy_labels.get(run.strategy, run.strategy) }}</td>

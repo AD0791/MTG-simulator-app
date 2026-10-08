@@ -197,10 +197,11 @@ Two supported paths. Both do everything; pick whichever you prefer.
 
 **Every command below runs from the repository root** — the directory holding `pyproject.toml`.
 Two settings are resolved relative to the working directory, not to the package: the `.env` file,
-and the `sqlite:///./app.db` path inside it. Run the server from anywhere else and both miss.
-SQLite creates an empty file rather than reporting a missing one, so the app starts cleanly,
-connects to a database with no tables, and every page that reads history fails with
-`no such table: simulations` while `app.db` sits intact in the repository root.
+and the `sqlite:///./app.db` path inside it. The app also runs `alembic upgrade head` at startup,
+and finds `alembic/` the same way. Run the server from anywhere else and startup fails because
+`alembic/` cannot be found. Before startup migrations existed, the same mistake failed silently:
+SQLite created an empty file, and every page that read history failed with
+`no such table: simulations`.
 
 `uv run` normally makes that impossible — from the wrong directory it finds no project and exits
 with `ModuleNotFoundError: No module named 'app'`. It only becomes silent if the virtualenv has
@@ -214,7 +215,7 @@ Requires [uv](https://docs.astral.sh/uv/). Python is managed for you.
 ```bash
 uv sync                                  # create the venv from the lockfile
 cp .env.example .env                     # local settings
-uv run alembic upgrade head              # create the SQLite schema
+uv run alembic upgrade head              # create the SQLite schema (startup also does this)
 uv run uvicorn app.main:app --reload     # http://127.0.0.1:8000
 ```
 
@@ -245,6 +246,30 @@ docker compose build api
 
 Dependencies are always added on the host with `uv add`, never inside a container — a
 container-local install dies with the container and never reaches the lockfile.
+
+## Deploying to FastAPI Cloud
+
+FastAPI Cloud builds from the GitHub repository and starts the app with `fastapi run`. Three
+things make that work:
+
+- **`fastapi[standard]`** is the dependency, not bare `fastapi`. The `fastapi` command needs
+  `fastapi-cli`, which only the `standard` extra installs.
+- **`[tool.fastapi] entrypoint = "app.main:app"`** in `pyproject.toml`. The `src/` layout is not one
+  the CLI finds on its own.
+- **Migrations run at startup.** The platform has no pre-start step, so `lifespan` calls
+  `db.upgrade_to_head()` before the app serves anything. On a database already at head, it does
+  nothing.
+
+Set `LOG_JSON=true` in the app's environment variables. Leave `DATABASE_URL` unset to use SQLite.
+That database lives inside the container, so **every redeploy or restart starts with an empty
+history**, and each replica keeps its own. Set a PostgreSQL `DATABASE_URL` when history has to
+survive a redeploy.
+
+To reproduce the cloud start locally against a fresh database:
+
+```bash
+DATABASE_URL=sqlite:///./scratch.db uv run fastapi run
+```
 
 ## Logging
 

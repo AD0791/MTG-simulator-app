@@ -8,6 +8,8 @@ knows it solely from the URL in `Settings`. Moving to PostgreSQL or MySQL is a
 from collections.abc import Generator
 from typing import Annotated, Any
 
+from alembic import command
+from alembic.config import Config
 from fastapi import Depends
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -48,3 +50,19 @@ def get_session() -> Generator[Session]:
 
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+def upgrade_to_head() -> None:
+    """Bring the configured database to the latest migration.
+
+    Run at startup because a hosted deploy has no pre-start step, and its SQLite
+    file begins empty. A no-op on a database already at head.
+
+    `alembic/` resolves against the working directory, like `./app.db` and
+    `.env`: start the app from the repository root. The `Config` deliberately
+    has no ini file: `alembic/env.py` then skips `fileConfig`, which would
+    otherwise replace the structlog handlers `log.configure` installed.
+    """
+    config = Config()
+    config.set_main_option("script_location", "alembic")
+    command.upgrade(config, "head")

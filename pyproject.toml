@@ -9,7 +9,7 @@ license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.19.1",
-    "fastapi>=0.141.1",
+    "fastapi[standard]>=0.141.1",
     "jinja2>=3.1.6",
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.32",
@@ -24,6 +24,11 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/app"]
+
+# `fastapi run` and FastAPI Cloud import the app from here; the src layout is
+# not one the CLI discovers on its own.
+[tool.fastapi]
+entrypoint = "app.main:app"
 
 [dependency-groups]
 dev = [

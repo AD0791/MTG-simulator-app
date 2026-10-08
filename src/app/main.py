@@ -1,5 +1,6 @@
 """Application assembly: routers, static files, and the error seam."""
 
+import asyncio
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from http import HTTPStatus
@@ -11,7 +12,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 
-from . import log
+from . import db, log
 from .api import v1
 from .config import get_settings
 from .domain.staking_simulator import InvalidStakingConfig
@@ -26,6 +27,7 @@ logger = log.logger
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings = get_settings()
+    await asyncio.to_thread(db.upgrade_to_head)
     # `database` is the resolved path, not the configured URL — it answers "am I
     # running from the wrong directory against an empty SQLite file", which the
     # scheme alone cannot. Any password is masked; see `log.describe_database`.

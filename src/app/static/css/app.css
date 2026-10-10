@@ -570,8 +570,8 @@ fieldset.field > legend {
    rather than making the page body scroll. */
 /* `position: relative` makes this the containing block for the absolutely
    positioned `.visually-hidden` readings inside its cells. Without it they
-   escape the scroll box's clipping and widen the whole page: the funding
-   table's compact figures did, by 25px at 768px. */
+   escape the scroll box's clipping and widen the whole page — measured at
+   25px at 768px on 2026-10-10. */
 .table-scroll { overflow-x: auto; position: relative; }
 
 .ladder {
@@ -662,21 +662,19 @@ td.win-short { box-shadow: inset 3px 0 0 var(--recovery-short); }
 td.win-short .win-note { color: var(--recovery-short); }
 
 /* How much to keep in the account — the ladder's styles, its own section.
-   Rows past the wall are priced, not placed: a danger edge and the shortfall
-   in danger, nothing louder, so forty of them don't become a red wall of
-   text. Only the first — the wall itself — is red throughout. */
+   The last row is the wall: priced, not placed, so it reads in danger like
+   the ladder's own wall row. */
 /* A data section, not prose: lift the reading measure every `section` gets. */
 .funding { max-width: none; margin-top: var(--s8); }
 .funding__title { margin: 0 0 var(--s2); font-size: 1.1rem; }
 .funding__lede,
 .funding__note { max-width: var(--measure); color: var(--muted); }
 .funding__note { margin-top: var(--s3); font-size: .9rem; }
-.ladder tbody tr.funding-beyond { border-left-color: var(--danger); }
-.ladder tbody tr.funding-beyond td.elsewhere,
+.ladder tbody tr.funding-wall { border-left-color: var(--danger); }
 .ladder tbody tr.funding-wall td,
 .ladder tbody tr.funding-wall .entry { color: var(--danger); }
-/* "over capital by 9.01 × 10¹⁵" is the widest cell; let it wrap rather than
-   push four columns into a scroll at tablet widths. */
+/* "over capital by …" is the widest cell; let it wrap rather than push four
+   columns into a scroll at tablet widths. */
 .ladder.funding-table td.elsewhere { white-space: normal; }
 .funding-wall__tag {
   font-size: .7rem;

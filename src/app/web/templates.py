@@ -7,7 +7,6 @@ whether the app runs from a checkout or from the installed package in the image.
 from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
-from markupsafe import Markup
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = PACKAGE_ROOT / "templates"
@@ -31,27 +30,3 @@ def asset_version(path: str) -> int:
 
 
 templates.env.globals["asset_version"] = asset_version
-
-
-# Past a trillion a figure stops being money anyone holds and starts bursting
-# its table cell -- doubling for 200 entries reaches 10^61.
-_COMPACT_FROM = 1e12
-_SUPERSCRIPT = str.maketrans("0123456789-", "⁰¹²³⁴⁵⁶⁷⁸⁹⁻")
-
-
-def money(value: float) -> Markup:
-    """A dollar figure to two places, or 4.50 times 10 to the 15 written with
-    the multiplication sign and a superscript once it is past a trillion --
-    with a spoken reading beside it, since superscripts are not reliably
-    announced."""
-    if abs(value) < _COMPACT_FROM:
-        return Markup("%.2f") % value
-    mantissa, exponent = f"{value:.2e}".split("e")
-    power = str(int(exponent))
-    return Markup(
-        '<span aria-hidden="true">{m} \N{MULTIPLICATION SIGN} 10{sup}</span>'
-        '<span class="visually-hidden">{m} times 10 to the {p}</span>'
-    ).format(m=mantissa, p=power, sup=power.translate(_SUPERSCRIPT))
-
-
-templates.env.filters["money"] = money

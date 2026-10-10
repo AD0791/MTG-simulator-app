@@ -151,16 +151,14 @@ async def test_submitting_the_reference_case_redirects_to_its_result(
     # The first several rows stay uncoloured — this fixture never spends most
     # of the table, per the roadmap's own "calm until abruptly it isn't."
     assert page.text.count("balance-cell drawdown-") == 1
-    # Below the ladder: what to keep in the account, to the 50-entry cap. Eight
-    # losses need $837; a ninth would take $837 + $910 = $1,747, $747 over
-    # capital -- the wall -- and every row after it is over capital too.
+    # Below the ladder: what to keep in the account. Eight losses need $837; a
+    # ninth would take $837 + $910 = $1,747, $747 over capital -- the wall, and
+    # the table's last row.
     assert "How much to keep in the account" in page.text
     assert "837.00" in page.text and "1747.00" in page.text
     assert "over capital by 747.00" in page.text
-    assert page.text.count('class="funding-beyond funding-wall"') == 1
-    assert page.text.count('class="funding-beyond"') == 50 - 9
-    # Fifty entries of recovery staking run past a trillion; those print compactly.
-    assert "\N{MULTIPLICATION SIGN} 10" in page.text and "times 10 to the" in page.text
+    assert page.text.count('class="funding-wall"') == 1
+    assert page.text.count("over capital by") == 1
 
 
 async def test_a_target_the_openers_cannot_meet_shows_a_shortfall_badge(

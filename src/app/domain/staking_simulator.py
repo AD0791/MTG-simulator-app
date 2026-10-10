@@ -26,8 +26,9 @@ back a fully populated StakingTable. Everything is a dataclass DTO, so the
 whole result serializes straight out of an API response.
 
 required_balances(config) answers the funding question instead: the balance
-the account must hold to absorb each number of straight losses, with no wall
--- for a trader who keeps most of the capital outside the account.
+the account must hold to absorb each number of straight losses, without
+stopping at the wall -- for a trader who keeps most of the capital outside
+the account.
 """
 
 from dataclasses import dataclass, field, asdict

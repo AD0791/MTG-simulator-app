@@ -141,9 +141,9 @@ of a simulator submission — one plan, one or more strategies, the target as a 
 
 Responses are view models, not rows. Every ladder entry carries its exposure `share` and `band`, its
 `drawdown`, `drawdown_band` and `recovery_gain`, and its `win_net` and `short_recovery`; a run
-carries its `wall_share`, `opener_badge` and `funding` — for every number of losses up to
-`max_entries`, the balance to `keep` in the account and what is left to hold `elsewhere`. Rows the
-capital cannot cover are `beyond`; the first of them is the `wall`.
+carries its `wall_share`, `opener_badge` and `funding` — for each number of losses the plan
+covers, the balance to `keep` in the account and what is left to hold `elsewhere`, ending with the
+`wall` row that prices the entry it could not place.
 They are classified once, in `services/bands.py`, by the same functions the pages use — so a client
 renders them and restates no threshold.
 

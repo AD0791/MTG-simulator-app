@@ -284,12 +284,11 @@ class FundingRead(BaseModel):
 
     losses: int
     keep: float
-    # Negative on a `beyond` row: by how much covering it exceeds capital.
+    # Negative on the `wall` row: by how much covering it exceeds capital.
     elsewhere: float
     share: float
-    # True on every row the capital cannot cover — from the wall on.
-    beyond: bool
-    # True on the first `beyond` row only: the entry the plan could not place.
+    # True on the last row only, when there is a wall: the entry the plan could
+    # not place. The table stops there.
     wall: bool
 
 

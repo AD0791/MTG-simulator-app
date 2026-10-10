@@ -166,24 +166,23 @@ def _wall(required: float | None, available: float | None) -> WallRow | None:
 class FundingRow:
     """What the trading account must hold to absorb `losses` straight losses.
 
-    `keep` is the total staked through that loss. Up to the wall it is the
-    ladder's own cumulative loss; past it, the ladder carried on as if the
-    account never ran dry. `elsewhere` is what that leaves of the capital to
-    hold outside the account, negative once `beyond` — more than the whole
-    capital. `wall` marks the first such row: the entry the plan could not
-    place.
+    `keep` is the total staked through that loss — the ladder's own
+    cumulative loss, read as a requirement. `elsewhere` is what that leaves of
+    the capital to hold outside the account. `wall` marks the last row: the
+    entry the plan could not place, whose `keep` exceeds the capital and whose
+    `elsewhere` is therefore negative.
     """
 
     losses: int
     keep: float
     elsewhere: float
     share: float  # `keep` against starting capital
-    beyond: bool
     wall: bool
 
 
 def funding(config: StakingConfig) -> list[FundingRow]:
-    """One row for every entry up to `max_entries`, past the wall included.
+    """One row per entry the plan places, then the wall's row, and nothing
+    after it — past the wall the account is already gone.
 
     No stake reads the balance, so how much is actually sitting in the
     account changes none of these figures — only where they cross capital.
@@ -191,17 +190,18 @@ def funding(config: StakingConfig) -> list[FundingRow]:
     capital = config.capital
     rows: list[FundingRow] = []
     for losses, keep in enumerate(required_balances(config), start=1):
-        beyond = keep > capital
+        wall = keep > capital
         rows.append(
             FundingRow(
                 losses=losses,
                 keep=keep,
                 elsewhere=round(capital - keep, 2),
                 share=keep / capital,
-                beyond=beyond,
-                wall=beyond and not (rows and rows[-1].beyond),
+                wall=wall,
             )
         )
+        if wall:
+            break
     return rows
 
 

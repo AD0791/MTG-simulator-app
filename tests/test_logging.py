@@ -156,8 +156,8 @@ async def test_a_comparison_is_logged_as_one_group(client: AsyncClient) -> None:
     group = _one(captured, "simulation.group_stored")
     assert group["count"] == 2
     assert group["strategies"] == ["adder_breakeven", "double"]
-    # The reference case: doubling reaches the wall two entries sooner.
-    assert group["losses_survived"] == [8, 6]
+    # The reference case: doubling reaches the wall one entry sooner.
+    assert group["losses_survived"] == [8, 7]
     assert group["run_group"] is not None
 
 

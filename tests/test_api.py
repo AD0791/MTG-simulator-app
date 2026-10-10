@@ -217,10 +217,14 @@ async def test_a_ladder_is_simulated_without_being_stored(client: AsyncClient) -
 
     assert response.status_code == 200
     body = response.json()
-    assert body["wall_required_stake"] == 1620
-    assert body["wall_balance_available"] == 190.0
-    assert body["losses_survived"] == 6
-    assert [entry["position"] for entry in body["entries"]] == [1, 2, 3, 4, 5, 6]
+    assert body["wall_required_stake"] == 640
+    assert body["wall_balance_available"] == 370.0
+    assert body["losses_survived"] == 7
+    assert [entry["position"] for entry in body["entries"]] == [1, 2, 3, 4, 5, 6, 7]
+    # Candles 5 and 6 would recover the streak only in part; the openers are never judged.
+    short = [entry["label"] for entry in body["entries"] if entry["short_recovery"]]
+    assert short == ["5", "6"]
+    assert [entry["win_net"] for entry in body["entries"]][-2:] == [-2.8, -15.6]
     assert (await client.get("/api/v1/simulations")).json() == []
 
 

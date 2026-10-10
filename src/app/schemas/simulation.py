@@ -247,10 +247,11 @@ class OpenerSuggestionQuery(BaseModel):
 
 
 class EntryRead(BaseModel):
-    """One rung of the ladder, with both colour ramps already classified.
+    """One rung of the ladder, with every colour mark already classified.
 
     `share` is the stake against the balance available before it; `drawdown` is
-    the cumulative loss against starting capital.
+    the cumulative loss against starting capital; `win_net` is what a win on
+    this entry would leave against starting capital.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -268,6 +269,11 @@ class EntryRead(BaseModel):
     drawdown_band: DrawdownBand | None
     # Null at a 100% drawdown, where the gain needed to recover is undefined.
     recovery_gain: float | None
+    # Signed: negative when a win on this entry still ends below starting capital.
+    win_net: float
+    # True on a derived entry whose win recovers the streak only in part — never
+    # on an opener, never under an adder.
+    short_recovery: bool
 
 
 class OpenerBadgeRead(BaseModel):

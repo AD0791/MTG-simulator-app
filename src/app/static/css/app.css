@@ -35,6 +35,11 @@
   --drawdown-critical: #e2a8ff;
   --drawdown-terminal: #ff8dd1;
 
+  /* short recovery — a win that clears most of the streak but still ends
+     below starting capital, on the "If won" cell. Teal, the one hue neither
+     ramp nor the accent uses, so it reads as its own signal. */
+  --recovery-short: #39c5cf;
+
   /* type */
   --font-prose:  ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-figure: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", monospace;
@@ -634,7 +639,8 @@ td.drawdown-severe   { box-shadow: inset 3px 0 0 var(--drawdown-severe); }
 td.drawdown-critical { box-shadow: inset 3px 0 0 var(--drawdown-critical); }
 td.drawdown-terminal { box-shadow: inset 3px 0 0 var(--drawdown-terminal); }
 
-.drawdown-note {
+.drawdown-note,
+.win-note {
   display: block;
   margin-top: 2px;
   font-size: .75rem;
@@ -645,6 +651,11 @@ td.drawdown-heavy    .drawdown-note { color: var(--drawdown-heavy); }
 td.drawdown-severe   .drawdown-note { color: var(--drawdown-severe); }
 td.drawdown-critical .drawdown-note { color: var(--drawdown-critical); }
 td.drawdown-terminal .drawdown-note { color: var(--drawdown-terminal); }
+
+/* Short recovery: same inset-plus-note treatment as the drawdown ramp, on the
+   "If won" cell, so it never competes with the row's exposure border. */
+td.win-short { box-shadow: inset 3px 0 0 var(--recovery-short); }
+td.win-short .win-note { color: var(--recovery-short); }
 
 /* The wall is not a data row and must not read as one. */
 .ladder .wall-row {
@@ -700,6 +711,8 @@ td.drawdown-terminal .drawdown-note { color: var(--drawdown-terminal); }
 .legend--drawdown .swatch--severe   { color: var(--drawdown-severe); }
 .legend--drawdown .swatch--critical { color: var(--drawdown-critical); }
 .legend--drawdown .swatch--terminal { color: var(--drawdown-terminal); }
+
+.legend .swatch--short { color: var(--recovery-short); }
 
 /* --- history ----------------------------------------------------------- */
 
@@ -817,7 +830,8 @@ td.drawdown-terminal .drawdown-note { color: var(--drawdown-terminal); }
   }
 
   /* The recovery note takes its own line under the balance it qualifies. */
-  .table-card .drawdown-note { flex-basis: 100%; text-align: right; margin-top: 0; }
+  .table-card .drawdown-note,
+  .table-card .win-note { flex-basis: 100%; text-align: right; margin-top: 0; }
 
   /* The wall is a statement, not a label/value pair. */
   .table-card tbody td.wall-reason { display: block; text-align: left; }

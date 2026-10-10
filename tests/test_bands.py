@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.domain.staking_simulator import InvalidStakingConfig
+from app.domain.staking_simulator import STRATEGIES, InvalidStakingConfig
 from app.services.bands import (
     band_for,
     drawdown_band_for,
@@ -17,6 +17,7 @@ from app.services.bands import (
     opener_derivation,
     recovery_gain,
     suggested_opener,
+    worked_example,
 )
 
 
@@ -246,3 +247,44 @@ def test_ladder_leaves_drawdown_band_unset_below_the_floor() -> None:
     rows = ladder([entry], capital=1000.0)
 
     assert rows[0].drawdown_band is None
+
+
+# --- Short recovery: a win that ends below starting capital ------------------
+
+
+def test_short_recovery_marks_a_derived_entry_whose_win_ends_below_capital() -> None:
+    entry = SimpleNamespace(
+        label="5", stake=160.0, cumulative_loss=310.0, balance=690.0, balance_if_win=997.2
+    )
+
+    [row] = ladder([entry], capital=1000.0)
+
+    assert row.win_net == -2.8
+    assert row.short_recovery is True
+
+
+def test_short_recovery_is_never_judged_on_an_opener() -> None:
+    """1b alone returns $4.60 against the $5 1a lost -- the opener badge's
+    business, not the streak's."""
+    entry = SimpleNamespace(
+        label="1b", stake=5.0, cumulative_loss=10.0, balance=990.0, balance_if_win=999.6
+    )
+
+    [row] = ladder([entry], capital=1000.0)
+
+    assert row.win_net == -0.4
+    assert row.short_recovery is False
+
+
+def test_short_recovery_marks_only_the_doubled_tail_of_the_reference_case() -> None:
+    rows, _ = worked_example("double")
+
+    assert [r.label for r in rows if r.short_recovery] == ["5", "6"]
+
+
+@pytest.mark.parametrize("strategy", [s for s in STRATEGIES if s != "double"])
+def test_short_recovery_never_appears_under_an_adder(strategy: str) -> None:
+    """The ceiling makes `stake * payout >= cumulative loss` by construction."""
+    rows, _ = worked_example(strategy)
+
+    assert not any(r.short_recovery for r in rows)

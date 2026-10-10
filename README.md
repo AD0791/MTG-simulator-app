@@ -28,17 +28,15 @@ seeing exactly how and where such a strategy fails.
 1. **One or two opening entries** — placed by hand on the first candle. Two is the default
    (**1a** and **1b**); a plan may instead open with a single entry, labelled **1**. Whichever is
    chosen, those are the only numbers supplied directly — everything after them is derived.
-   Halving a two-opener plan to one buys no extra depth: the recovery formulas still place the
-   same number of entries before the wall, just with less cushion left; `double` walls one entry
-   sooner.
-2. **From entry 2 on**, the stake is computed from accumulated debt by one of three named
-   strategies:
+   Halving a two-opener plan to one buys no extra depth: every strategy still places the same
+   number of entries before the wall, just with less cushion left.
+2. **From entry 2 on**, the stake is computed by one of three named strategies:
 
    | Strategy | Rule | What it is reaching for |
    |---|---|---|
    | `adder_breakeven` | `⌈cumulative_loss ÷ payout_ratio⌉` | the smallest whole-dollar stake that, winning, gets back to even |
    | `adder_profit` | `⌈(cumulative_loss + target_profit) ÷ payout_ratio⌉` | the same, plus a fixed profit on top — identical to breakeven when the target is 0 |
-   | `double` | `2 × cumulative_loss` | the textbook martingale; the only one that reads neither the payout nor the target |
+   | `double` | `2 × previous stake` | the textbook martingale — each candle doubles the last, and candle 2 doubles both openers together; the only one that reads neither the payout nor the target |
 
 The simulation stops the instant the next required stake exceeds the remaining balance.
 
@@ -47,9 +45,13 @@ Reference case — $1,000 of capital, $5 + $5 on the first candle, a 92% payout 
 | Strategy | Entries placed | Next stake needed | Balance left |
 |---|---|---|---|
 | `adder_breakeven`, `adder_profit` | 8 | **$910** | **$163** |
-| `double` | 6 | **$1,620** | **$190** |
+| `double` | 7 | **$640** | **$370** |
 
-Doubling reaches the wall two entries sooner. Neither escapes it.
+Doubling reaches the wall one entry sooner — and stops paying for itself before it gets there. A
+win on a doubled stake leaves `first-candle stake − stake × (1 − payout_ratio)` over: the margin
+is fixed while the payout's cut doubles every candle. At 92% that turns negative on entry 5, where
+a win ends $2.80 below starting capital. The ladder marks those entries as *short recovery*.
+Neither strategy escapes the wall.
 
 ## Pages
 
@@ -138,7 +140,8 @@ of a simulator submission — one plan, one or more strategies, the target as a 
 — and the page reaches the service through the same conversion (`SimulationForm.to_plan()`).
 
 Responses are view models, not rows. Every ladder entry carries its exposure `share` and `band`, its
-`drawdown`, `drawdown_band` and `recovery_gain`; a run carries its `wall_share` and `opener_badge`.
+`drawdown`, `drawdown_band` and `recovery_gain`, and its `win_net` and `short_recovery`; a run
+carries its `wall_share` and `opener_badge`.
 They are classified once, in `services/bands.py`, by the same functions the pages use — so a client
 renders them and restates no threshold.
 

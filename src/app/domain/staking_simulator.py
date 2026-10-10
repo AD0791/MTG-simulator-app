@@ -12,7 +12,11 @@ stake exceeds the remaining balance -- the martingale wall.
 
   adder_breakeven  stake = ceil(cumulative_loss / payout_ratio)
   adder_profit     stake = ceil((cumulative_loss + target_profit) / payout_ratio)
-  double           stake = 2 * cumulative_loss
+  double           stake = 2 * previous stake
+
+double is the textbook martingale: each candle doubles the one before it. On
+candle 2 the "previous stake" is everything placed on candle 1 -- both openers
+when there are two.
 
 adder_profit is the default -- it is what every stored run before the
 "double" method existed was computed with.
@@ -28,22 +32,25 @@ import json
 import math
 
 
-def _adder_breakeven(cumulative_loss: float, target_profit: float, payout_ratio: float) -> float:
+def _adder_breakeven(cumulative_loss: float, last_stake: float,
+                     target_profit: float, payout_ratio: float) -> float:
     return math.ceil(cumulative_loss / payout_ratio)
 
 
-def _adder_profit(cumulative_loss: float, target_profit: float, payout_ratio: float) -> float:
+def _adder_profit(cumulative_loss: float, last_stake: float,
+                  target_profit: float, payout_ratio: float) -> float:
     return math.ceil((cumulative_loss + target_profit) / payout_ratio)
 
 
-def _double(cumulative_loss: float, target_profit: float, payout_ratio: float) -> float:
-    return 2 * cumulative_loss
+def _double(cumulative_loss: float, last_stake: float,
+            target_profit: float, payout_ratio: float) -> float:
+    return 2 * last_stake
 
 
 # A strategy is a callable, selected by name -- not a class hierarchy. Three
 # values don't fit a flag, and a fourth is plausible, so the name is what's
 # stored and persisted.
-STRATEGIES: Dict[str, Callable[[float, float, float], float]] = {
+STRATEGIES: Dict[str, Callable[[float, float, float, float], float]] = {
     "adder_breakeven": _adder_breakeven,
     "adder_profit": _adder_profit,
     "double": _double,
@@ -142,11 +149,15 @@ class StakingTable:
             )
 
         stake_for = STRATEGIES[config.strategy]
+        # The previous candle's stake: on candle 2 that is every opener together.
+        last_stake = sum(stake for _, stake in manual_entries)
 
         candle = 2
         while entry_number < config.max_entries:
             entry_number += 1
-            stake = stake_for(cumulative_loss, config.target_profit, config.payout_ratio)
+            stake = stake_for(
+                cumulative_loss, last_stake, config.target_profit, config.payout_ratio
+            )
 
             if stake > balance:
                 table._hit_wall(stake, balance, entry_number)
@@ -155,6 +166,7 @@ class StakingTable:
             balance, cumulative_loss = table._record(
                 str(candle), stake, balance, cumulative_loss, entry_number
             )
+            last_stake = stake
             candle += 1
 
         return table

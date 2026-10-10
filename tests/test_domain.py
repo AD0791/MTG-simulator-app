@@ -28,14 +28,16 @@ REFERENCE_LADDER = [
     ("7", 436.0, 837.0, 163.0),
 ]
 
-# Same capital and openers, the "double" strategy: stake = 2 * cumulative_loss.
+# Same capital and openers, the "double" strategy: stake = 2 * previous stake,
+# where candle 2's "previous stake" is both openers together (5 + 5).
 DOUBLE_LADDER = [
     ("1a", 5.0, 5.0, 995.0),
     ("1b", 5.0, 10.0, 990.0),
     ("2", 20.0, 30.0, 970.0),
-    ("3", 60.0, 90.0, 910.0),
-    ("4", 180.0, 270.0, 730.0),
-    ("5", 540.0, 810.0, 190.0),
+    ("3", 40.0, 70.0, 930.0),
+    ("4", 80.0, 150.0, 850.0),
+    ("5", 160.0, 310.0, 690.0),
+    ("6", 320.0, 630.0, 370.0),
 ]
 
 # A single opener (entry_1b=None): capital 1000, one $5 opener, 92% payout.
@@ -53,9 +55,11 @@ SINGLE_OPENER_LADDER = [
 SINGLE_OPENER_DOUBLE_LADDER = [
     ("1", 5.0, 5.0, 995.0),
     ("2", 10.0, 15.0, 985.0),
-    ("3", 30.0, 45.0, 955.0),
-    ("4", 90.0, 135.0, 865.0),
-    ("5", 270.0, 405.0, 595.0),
+    ("3", 20.0, 35.0, 965.0),
+    ("4", 40.0, 75.0, 925.0),
+    ("5", 80.0, 155.0, 845.0),
+    ("6", 160.0, 315.0, 685.0),
+    ("7", 320.0, 635.0, 365.0),
 ]
 
 
@@ -172,23 +176,43 @@ def test_double_strategy_ladder_matches_row_for_row() -> None:
     table = StakingTable.build(StakingConfig(**REFERENCE, strategy="double"))
 
     assert table.wall_hit is True
-    assert table.wall_required_stake == 1620
-    assert table.wall_balance_available == 190.0
-    assert table.losses_survived == 6
+    assert table.wall_required_stake == 640
+    assert table.wall_balance_available == 370.0
+    assert table.losses_survived == 7
     actual = [(r.label, r.stake, r.cumulative_loss, r.balance) for r in table.rows]
     assert actual == DOUBLE_LADDER
 
 
 def test_double_survives_fewer_entries_than_adder_profit() -> None:
-    """The teaching point: doubling recovers and profits at a 92% payout too — it
-    just exhausts capital faster, reaching the wall sooner, not failing to recover."""
     double = StakingTable.build(StakingConfig(**REFERENCE, strategy="double"))
     adder = StakingTable.build(StakingConfig(**REFERENCE))
 
     assert double.losses_survived < adder.losses_survived
-    # A win still clears the debt and profits — doubling isn't broken arithmetic.
-    for row in double.rows[2:]:
-        assert row.balance_if_win > 1000.0
+
+
+def test_double_stops_recovering_in_full_before_the_wall() -> None:
+    """The teaching point: a win on a doubled stake returns `stake * payout`
+    against a debt of nearly the whole stake, so the net shrinks with every
+    doubling. At 92% it turns negative once the stake is past 12.5 openers --
+    on candle 5 here, two candles before the wall."""
+    double = StakingTable.build(StakingConfig(**REFERENCE, strategy="double"))
+    if_won = {r.label: r.balance_if_win for r in double.rows}
+
+    assert [if_won[c] > 1000.0 for c in ("2", "3", "4")] == [True] * 3
+    assert [if_won[c] < 1000.0 for c in ("5", "6")] == [True] * 2
+
+
+def test_double_from_one_eight_dollar_opener() -> None:
+    """8, 16, 32, 64, 128, 256 -- each candle twice the one before -- then the
+    wall: 512 against 496 left."""
+    table = StakingTable.build(
+        StakingConfig(capital=1000.0, entry_1a=8.0, entry_1b=None, strategy="double")
+    )
+
+    assert [r.stake for r in table.rows] == [8, 16, 32, 64, 128, 256]
+    assert table.wall_required_stake == 512
+    assert table.wall_balance_available == 496.0
+    assert [r.balance_if_win for r in table.rows][-2:] == [997.76, 987.52]
 
 
 # --- A single first entry (entry_1b=None) --------------------------------
@@ -215,9 +239,9 @@ def test_single_opener_double_ladder() -> None:
     table = StakingTable.build(StakingConfig(**{**REFERENCE, "entry_1b": None}, strategy="double"))
 
     assert table.wall_hit is True
-    assert table.wall_required_stake == 810.0
-    assert table.wall_balance_available == 595.0
-    assert table.losses_survived == 5
+    assert table.wall_required_stake == 640.0
+    assert table.wall_balance_available == 365.0
+    assert table.losses_survived == 7
     actual = [(r.label, r.stake, r.cumulative_loss, r.balance) for r in table.rows]
     assert actual == SINGLE_OPENER_DOUBLE_LADDER
 

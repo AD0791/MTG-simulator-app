@@ -14,6 +14,13 @@ down past half. The drawdown ramp only starts at 50%, the point where
 recovering costs more than the loss did, so a typical ladder stays uncoloured
 until abruptly, near the wall, it isn't.
 
+The "If won" cell carries a third, simpler mark: **short recovery**. A derived
+entry whose win would leave the account below starting capital recovers most
+of the streak but not all of it. The adders can never trigger it -- their
+ceiling makes `stake * payout >= cumulative loss` by construction -- so in
+practice it marks where doubling the previous stake stops paying for itself,
+a few candles before the wall.
+
 The HTML templates and the JSON API (`services/presentation.py`) both receive
 band names and the raw numbers, classified here once. Colour only reinforces
 what the printed figures already say.
@@ -44,6 +51,11 @@ DRAWDOWN_BANDS: tuple[tuple[float, DrawdownBand], ...] = (
     (0.65, "severe"),
     (0.50, "heavy"),
 )
+
+# The hand-placed entries on candle 1. A win on 1b alone nets less than the
+# 1a it follows, but the openers are the opener badge's business, not the
+# streak's -- so short recovery is only ever judged on a derived entry.
+OPENER_LABELS = frozenset({"1", "1a", "1b"})
 
 # Reader-facing names for the STRATEGIES keys in `domain.staking_simulator`.
 STRATEGY_LABELS = {
@@ -94,6 +106,8 @@ class LadderRow:
     drawdown: float
     drawdown_band: DrawdownBand | None
     recovery_gain: float | None
+    win_net: float
+    short_recovery: bool
 
 
 @dataclass(frozen=True)
@@ -116,6 +130,7 @@ def _row(
     balance_before = balance + stake
     share = stake / balance_before if balance_before else 1.0
     drawdown = cumulative_loss / capital if capital else 1.0
+    win_net = round(balance_if_win - capital, 2)
     return LadderRow(
         label=label,
         stake=stake,
@@ -127,6 +142,8 @@ def _row(
         drawdown=drawdown,
         drawdown_band=drawdown_band_for(drawdown),
         recovery_gain=recovery_gain(drawdown),
+        win_net=win_net,
+        short_recovery=label not in OPENER_LABELS and win_net < 0,
     )
 
 

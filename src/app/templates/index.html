@@ -76,9 +76,9 @@
       <strong>One or two opening entries</strong> — placed by hand on the first candle, shared by
       every strategy below. Two is the usual shape; the simulator also models a single opener.
       Neither has acted yet, so the streak has not started either way. Halving the opener does not
-      buy extra depth into the ladder — under the recovery formula the plan still places the same
-      number of entries before the wall, just with less cushion left when it arrives; under double
-      it walls one entry sooner. A smaller opening stake is not the safer choice.
+      buy extra depth into the ladder — under either strategy the plan still places the same
+      number of entries before the wall, just with less cushion left when it arrives. A smaller
+      opening stake is not the safer choice.
     </li>
     <li>
       <strong>From the second entry on</strong> — one of two ways of sizing the stake takes over:
@@ -98,9 +98,11 @@
     </dd>
     <dt>Double</dt>
     <dd>
-      <span class="figure">stake = 2 &times; cumulative loss</span>
-      <span class="visually-hidden">stake equals twice the cumulative loss</span>
-      — simplest to describe, and the subject of the honesty note below.
+      <span class="figure">stake = 2 &times; previous stake</span>
+      <span class="visually-hidden">stake equals twice the previous stake</span>
+      — the textbook martingale. Each candle doubles the one before it; on the second candle,
+      "the one before" is both openers together. Simplest to describe, and the subject of the
+      note below.
     </dd>
   </dl>
 
@@ -112,11 +114,23 @@
 
   <div class="callout">
     <p>
-      <strong>Doubling is not broken arithmetic.</strong> At a 92% payout, a win under the double
-      strategy still clears the entire debt and returns a profit on top of it. What doubling does
-      differently is burn capital faster — it reaches the wall in fewer entries than the recovery
-      formula, not because a win fails to pay off, but because each stake is a larger bite out of
-      what remains. The account runs out sooner, not the arithmetic.
+      <strong>Doubling stops recovering before it reaches the wall.</strong> A doubled stake is
+      only ever the first-candle stake larger than everything already lost, and a win pays back
+      the stake minus the payout's cut. So what a win leaves over is
+    </p>
+    <p class="figure">
+      net if won = first-candle stake &minus; stake &times; (1 &minus; payout ratio)
+      <span class="visually-hidden">
+        the net if this entry wins equals the first-candle stake, minus the stake multiplied by
+        one minus the payout ratio
+      </span>
+    </p>
+    <p>
+      The first term never grows; the second doubles every candle. At a 92% payout the cut
+      overtakes the margin once the stake passes 12.5 times the first candle, and from there a win
+      recovers most of the streak but still ends below starting capital. The ladder marks those
+      entries in teal on the &ldquo;If won&rdquo; column. The recovery formula never does this:
+      it rounds each stake up to whatever a full recovery takes.
     </p>
   </div>
 </section>
@@ -151,13 +165,13 @@
   </div>
 
   <p>
-    Same capital, same openers, same payout — but the recovery formula survives eight entries and
-    doubling survives only six. Doubling doesn't fail here either: a win on entry 5's $540 stake
-    would have cleared the entire $810 lost so far and left the balance at $1,226.80 — well above
-    the $1,000 it started with. The wall arrives right after: entry 6 would need $1,620, and only
-    $190 is left. That contrast — not a difference in whether either method works, but in how fast
-    each one spends the account down — is the whole argument for comparing them side by side rather
-    than picking one on faith.
+    Same capital, same openers, same payout — the recovery formula survives eight entries,
+    doubling seven. Doubling's first wins pay: a win on entry 4's $80 stake would leave $1,003.60.
+    Then the margin runs out. A win on entry 5's $160 stake leaves $997.20, $2.80 short of where
+    the account started; on entry 6's $320 stake, $984.40, $15.60 short. And the wall arrives right
+    after: entry 7 would need $640, and only $370 is left. Two entries before the end, doubling
+    was already paying a win back at a loss — the whole argument for comparing the methods side
+    by side rather than picking one on faith.
   </p>
 </section>
 
@@ -259,11 +273,13 @@
   <details>
     <summary>Does doubling recover a loss, or not?</summary>
     <p>
-      It does. A win under the double strategy returns twice the stake at the payout ratio, which
-      clears the entire debt and leaves a profit on top — the same as the recovery formula. The
-      difference is speed, not success: doubling stakes more of what remains at every step, so it
-      reaches the wall sooner. Comparing the two side by side in the simulator makes that visible
-      without taking either claim on faith.
+      Only for its first few candles. Each doubled stake exceeds everything already lost by just
+      the first-candle stake, and a win gives back the stake less the payout's cut. That cut
+      doubles every candle while the margin stays put, so below a 100% payout it always catches
+      up: at 92%, once the stake passes 12.5 times the first candle, a win recovers most of the
+      streak but still ends below starting capital. Those entries are marked in teal, with the
+      shortfall printed beside them. The recovery formula never falls short this way, because it
+      sizes every stake to a full recovery.
     </p>
   </details>
 </section>

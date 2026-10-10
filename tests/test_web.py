@@ -300,7 +300,11 @@ async def test_selecting_two_strategies_redirects_to_a_comparison(
     assert "Double" in page.text
     # Each strategy's own wall, both present on one page.
     assert "910.00" in page.text and "163.00" in page.text
-    assert "1620.00" in page.text and "190.00" in page.text
+    assert "640.00" in page.text and "370.00" in page.text
+    # Only doubling falls short of a full recovery, so only its table marks it.
+    assert page.text.count("win-short") == 2
+    assert "short $2.80" in page.text and "short $15.60" in page.text
+    assert page.text.count("If won &mdash; short recovery") == 1
     # The opener badge doesn't vary by strategy — it repeats once per table.
     assert page.text.count('<div class="badge') == 2
     assert page.text.count("+$9.20, balance $1009.20") == 2

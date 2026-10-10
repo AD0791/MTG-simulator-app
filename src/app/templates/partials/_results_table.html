@@ -41,7 +41,13 @@
               </span>
             {%- endif %}
           </td>
-          <td class="num"><span class="cell-label">If won</span>{{ "%.2f"|format(row.balance_if_win) }}</td>
+          <td class="num{% if row.short_recovery %} win-short{% endif %}">
+            <span class="cell-label">If won</span>
+            {{- "%.2f"|format(row.balance_if_win) }}
+            {%- if row.short_recovery %}
+              <span class="win-note">short ${{ "%.2f"|format(-row.win_net) }}</span>
+            {%- endif %}
+          </td>
         </tr>
       {% endfor %}
 
@@ -74,3 +80,13 @@
   <li><span class="swatch swatch--critical"></span> 80–90%, needs +400–900%</li>
   <li><span class="swatch swatch--terminal"></span> 90%+, needs +900% or more</li>
 </ul>
+
+{% if ladder | selectattr("short_recovery") | list %}
+  <p class="legend__label">If won &mdash; short recovery</p>
+  <ul class="legend">
+    <li>
+      <span class="swatch swatch--short"></span>
+      a win recovers most of the streak but still ends below starting capital
+    </li>
+  </ul>
+{% endif %}

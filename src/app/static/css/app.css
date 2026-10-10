@@ -568,7 +568,11 @@ fieldset.field > legend {
    is only a wrapper. It becomes the table's frame again at the breakpoint,
    where `overflow-x` is the guarantee that a wide table scrolls inside itself
    rather than making the page body scroll. */
-.table-scroll { overflow-x: auto; }
+/* `position: relative` makes this the containing block for the absolutely
+   positioned `.visually-hidden` readings inside its cells. Without it they
+   escape the scroll box's clipping and widen the whole page: the funding
+   table's compact figures did, by 25px at 768px. */
+.table-scroll { overflow-x: auto; position: relative; }
 
 .ladder {
   width: 100%;
@@ -656,6 +660,29 @@ td.drawdown-terminal .drawdown-note { color: var(--drawdown-terminal); }
    "If won" cell, so it never competes with the row's exposure border. */
 td.win-short { box-shadow: inset 3px 0 0 var(--recovery-short); }
 td.win-short .win-note { color: var(--recovery-short); }
+
+/* How much to keep in the account — the ladder's styles, its own section.
+   Rows past the wall are priced, not placed: a danger edge and the shortfall
+   in danger, nothing louder, so forty of them don't become a red wall of
+   text. Only the first — the wall itself — is red throughout. */
+/* A data section, not prose: lift the reading measure every `section` gets. */
+.funding { max-width: none; margin-top: var(--s8); }
+.funding__title { margin: 0 0 var(--s2); font-size: 1.1rem; }
+.funding__lede,
+.funding__note { max-width: var(--measure); color: var(--muted); }
+.funding__note { margin-top: var(--s3); font-size: .9rem; }
+.ladder tbody tr.funding-beyond { border-left-color: var(--danger); }
+.ladder tbody tr.funding-beyond td.elsewhere,
+.ladder tbody tr.funding-wall td,
+.ladder tbody tr.funding-wall .entry { color: var(--danger); }
+/* "over capital by 9.01 × 10¹⁵" is the widest cell; let it wrap rather than
+   push four columns into a scroll at tablet widths. */
+.ladder.funding-table td.elsewhere { white-space: normal; }
+.funding-wall__tag {
+  font-size: .7rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
 
 /* The wall is not a data row and must not read as one. */
 .ladder .wall-row {

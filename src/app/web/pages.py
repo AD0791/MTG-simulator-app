@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from ..db import SessionDep
 from ..log import logger
+from ..models import Simulation
 from ..schemas import RawSimulationForm, SimulationForm
 from ..services import bands, simulation_service
 from ..web import form_errors
@@ -226,6 +227,26 @@ def _safe_float(value: str | None, default: float = 0.0) -> float:
         return default
 
 
+def _run_view(simulation: Simulation) -> dict[str, Any]:
+    """Everything one stored run renders with — its ladder, wall, funding
+    table and opener badge — assembled once for both results pages."""
+    ladder = bands.ladder(simulation.entries, simulation.capital)
+    wall = bands.wall(simulation)
+    return {
+        "simulation": simulation,
+        "ladder": ladder,
+        "wall": wall,
+        "funding": bands.funding(bands.config_of(simulation)),
+        "badge": bands.opener_badge(
+            simulation.capital,
+            simulation.entry_1a,
+            simulation.entry_1b,
+            simulation.payout_ratio,
+            simulation.target_profit,
+        ),
+    }
+
+
 @router.get("/results/{simulation_id}", summary="One run's ladder")
 def results(request: Request, simulation_id: int, session: SessionDep) -> Response:
     simulation = simulation_service.get_simulation(session, simulation_id)
@@ -236,17 +257,8 @@ def results(request: Request, simulation_id: int, session: SessionDep) -> Respon
         request,
         "results.html",
         {
-            "simulation": simulation,
-            "ladder": bands.ladder(simulation.entries, simulation.capital),
-            "wall": bands.wall(simulation),
+            **_run_view(simulation),
             "strategy_label": bands.STRATEGY_LABELS.get(simulation.strategy, simulation.strategy),
-            "badge": bands.opener_badge(
-                simulation.capital,
-                simulation.entry_1a,
-                simulation.entry_1b,
-                simulation.payout_ratio,
-                simulation.target_profit,
-            ),
         },
     )
 
@@ -259,17 +271,8 @@ def results_group(request: Request, run_group: uuid.UUID, session: SessionDep) -
 
     tables = [
         {
-            "simulation": simulation,
-            "ladder": bands.ladder(simulation.entries, simulation.capital),
-            "wall": bands.wall(simulation),
+            **_run_view(simulation),
             "label": bands.STRATEGY_LABELS.get(simulation.strategy, simulation.strategy),
-            "badge": bands.opener_badge(
-                simulation.capital,
-                simulation.entry_1a,
-                simulation.entry_1b,
-                simulation.payout_ratio,
-                simulation.target_profit,
-            ),
             # Breakeven recovery returns the debt and roughly nothing more; it
             # stays on the comparison page as the honest contrast but its
             # ladder is collapsed so it isn't a co-headline with the other two.

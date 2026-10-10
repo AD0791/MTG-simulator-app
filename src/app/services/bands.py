@@ -30,7 +30,12 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
-from ..domain.staking_simulator import StakingConfig, StakingTable, check_payout_ratio
+from ..domain.staking_simulator import (
+    StakingConfig,
+    StakingTable,
+    check_payout_ratio,
+    required_balances,
+)
 from ..models import Simulation, SimulationEntry
 from ..schemas.simulation import Band, DrawdownBand
 
@@ -154,6 +159,62 @@ def _wall(required: float | None, available: float | None) -> WallRow | None:
         required_stake=required,
         balance_available=available,
         share=required / available if available else 1.0,
+    )
+
+
+@dataclass(frozen=True)
+class FundingRow:
+    """What the trading account must hold to absorb `losses` straight losses.
+
+    `keep` is the total staked through that loss. Up to the wall it is the
+    ladder's own cumulative loss; past it, the ladder carried on as if the
+    account never ran dry. `elsewhere` is what that leaves of the capital to
+    hold outside the account, negative once `beyond` — more than the whole
+    capital. `wall` marks the first such row: the entry the plan could not
+    place.
+    """
+
+    losses: int
+    keep: float
+    elsewhere: float
+    share: float  # `keep` against starting capital
+    beyond: bool
+    wall: bool
+
+
+def funding(config: StakingConfig) -> list[FundingRow]:
+    """One row for every entry up to `max_entries`, past the wall included.
+
+    No stake reads the balance, so how much is actually sitting in the
+    account changes none of these figures — only where they cross capital.
+    """
+    capital = config.capital
+    rows: list[FundingRow] = []
+    for losses, keep in enumerate(required_balances(config), start=1):
+        beyond = keep > capital
+        rows.append(
+            FundingRow(
+                losses=losses,
+                keep=keep,
+                elsewhere=round(capital - keep, 2),
+                share=keep / capital,
+                beyond=beyond,
+                wall=beyond and not (rows and rows[-1].beyond),
+            )
+        )
+    return rows
+
+
+def config_of(simulation: Simulation) -> StakingConfig:
+    """The plan a stored run was built from, ready to rebuild or extend."""
+    return StakingConfig(
+        capital=simulation.capital,
+        entry_1a=simulation.entry_1a,
+        entry_1b=simulation.entry_1b,
+        payout_ratio=simulation.payout_ratio,
+        target_profit=simulation.target_profit,
+        max_entries=simulation.max_entries,
+        strategy=simulation.strategy,
     )
 
 

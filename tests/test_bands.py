@@ -8,10 +8,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.domain.staking_simulator import STRATEGIES, InvalidStakingConfig
+from app.domain.staking_simulator import (
+    STRATEGIES,
+    InvalidStakingConfig,
+    StakingConfig,
+    StakingTable,
+)
 from app.services.bands import (
     band_for,
     drawdown_band_for,
+    funding,
     ladder,
     opener_badge,
     opener_derivation,
@@ -288,3 +294,58 @@ def test_short_recovery_never_appears_under_an_adder(strategy: str) -> None:
     rows, _ = worked_example(strategy)
 
     assert not any(r.short_recovery for r in rows)
+
+
+# --- Funding: what the account must hold for a given number of losses -------
+
+
+EIGHT_DOLLAR_DOUBLE = StakingConfig(capital=1000.0, entry_1a=8.0, entry_1b=None, strategy="double")
+
+
+def test_funding_is_the_cumulative_stake_through_each_loss() -> None:
+    """The $8 doubling plan: keep 8 to take one loss, 24 for two, … 504 for six."""
+    covered = [row for row in funding(EIGHT_DOLLAR_DOUBLE) if not row.beyond]
+
+    assert [row.keep for row in covered] == [8, 24, 56, 120, 248, 504]
+    assert [row.elsewhere for row in covered] == [992, 976, 944, 880, 752, 496]
+    assert [row.losses for row in covered] == [1, 2, 3, 4, 5, 6]
+
+
+def test_funding_runs_past_the_wall_to_the_entry_cap() -> None:
+    """Every entry up to max_entries: the doubling carries on past the capital."""
+    funded = funding(EIGHT_DOLLAR_DOUBLE)
+
+    assert len(funded) == EIGHT_DOLLAR_DOUBLE.max_entries
+    assert [row.keep for row in funded[6:9]] == [1016, 2040, 4088]
+    assert all(row.beyond for row in funded[6:])
+    assert funded[-1].keep == 8 * (2**50 - 1)
+
+
+def test_funding_marks_only_the_first_uncovered_row_as_the_wall() -> None:
+    """Six losses plus the $512 the wall demanded: $1,016, $16 over capital."""
+    funded = funding(EIGHT_DOLLAR_DOUBLE)
+
+    [wall] = [row for row in funded if row.wall]
+    assert (wall.losses, wall.keep, wall.elsewhere) == (7, 1016, -16)
+    assert wall.share == pytest.approx(1.016)
+
+
+def test_funding_agrees_with_the_ladder_up_to_the_wall() -> None:
+    """The same stakes, so the same totals, for every strategy -- and the wall
+    falls exactly where the ladder's did."""
+    for strategy in STRATEGIES:
+        config = StakingConfig(strategy=strategy)
+        table = StakingTable.build(config)
+        funded = funding(config)
+
+        assert [r.keep for r in funded[: table.losses_survived]] == [
+            r.cumulative_loss for r in table.rows
+        ]
+        assert funded[table.losses_survived].wall
+
+
+def test_funding_has_no_wall_inside_a_ladder_that_never_hit_one() -> None:
+    funded = funding(StakingConfig(capital=1000.0, entry_1a=5.0, entry_1b=5.0, max_entries=3))
+
+    assert [row.losses for row in funded] == [1, 2, 3]
+    assert not any(row.beyond or row.wall for row in funded)

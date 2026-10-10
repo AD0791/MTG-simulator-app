@@ -59,7 +59,7 @@ Neither strategy escapes the wall.
 |---|---|
 | `/` | The theory — how the payout mechanic works, why recovery staking hits a wall, and a FAQ for reading the results table |
 | `/simulator` | Capital, payout %, a target profit (as % of capital), a choice of one or two opening entries, and a choice of strategies to compare — only the entry cap sits under **Advanced** |
-| `/results/{id}` | One strategy's ladder, entry by entry, to the wall |
+| `/results/{id}` | One strategy's ladder, entry by entry, to the wall — and below it, how much to keep in the account for each number of losses |
 | `/results/group/{uuid}` | Several strategies compared side by side, one table each, from a single submission |
 | `/history` | Past runs, revisitable and clearable |
 
@@ -141,7 +141,9 @@ of a simulator submission — one plan, one or more strategies, the target as a 
 
 Responses are view models, not rows. Every ladder entry carries its exposure `share` and `band`, its
 `drawdown`, `drawdown_band` and `recovery_gain`, and its `win_net` and `short_recovery`; a run
-carries its `wall_share` and `opener_badge`.
+carries its `wall_share`, `opener_badge` and `funding` — for every number of losses up to
+`max_entries`, the balance to `keep` in the account and what is left to hold `elsewhere`. Rows the
+capital cannot cover are `beyond`; the first of them is the `wall`.
 They are classified once, in `services/bands.py`, by the same functions the pages use — so a client
 renders them and restates no threshold.
 

@@ -225,6 +225,20 @@ async def test_a_ladder_is_simulated_without_being_stored(client: AsyncClient) -
     short = [entry["label"] for entry in body["entries"] if entry["short_recovery"]]
     assert short == ["5", "6"]
     assert [entry["win_net"] for entry in body["entries"]][-2:] == [-2.8, -15.6]
+    # Seven losses need $630 in the account; an eighth, $630 + $640 -- the wall,
+    # $270 over capital. The rows carry on to the 50-entry cap.
+    funding = body["funding"]
+    assert len(funding) == 50
+    assert [row["keep"] for row in funding[:9]] == [5, 10, 30, 70, 150, 310, 630, 1270, 2550]
+    assert [row["losses"] for row in funding if row["wall"]] == [8]
+    assert funding[7] | {"share": None} == {
+        "losses": 8,
+        "keep": 1270,
+        "elsewhere": -270,
+        "share": None,
+        "beyond": True,
+        "wall": True,
+    }
     assert (await client.get("/api/v1/simulations")).json() == []
 
 

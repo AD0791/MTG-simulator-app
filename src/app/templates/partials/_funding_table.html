@@ -1,0 +1,69 @@
+{#
+  How much the trading account has to hold to take a given number of straight
+  losses — for a reader who keeps most of the capital somewhere else. One row
+  per entry up to the run's max_entries, past the wall included: rows the
+  capital cannot cover say by how much, and the first of them is the wall.
+
+  Expects `funding` (bands.FundingRow list) and `funding_heading` ("h2" or "h3").
+#}
+<section class="funding">
+  <{{ funding_heading }} class="funding__title">How much to keep in the account</{{ funding_heading }}>
+  <p class="funding__lede">
+    If most of the capital sits outside the trading account, the account only has to cover the
+    losses you mean to survive. Each row is the total staked through that many straight losses, up
+    to the run's entry cap. Keeping the rest elsewhere does not move the wall: one loss more than
+    the account covers still empties it. It only keeps the streak away from what you held back.
+  </p>
+
+  <div class="table-scroll">
+    <table class="ladder funding-table table-card">
+      <caption class="visually-hidden">
+        The balance the account must hold to absorb each number of consecutive losses, and what
+        that leaves of the capital to hold elsewhere.
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Losses covered</th>
+          <th scope="col" class="num">Keep in account</th>
+          <th scope="col" class="num">Held elsewhere</th>
+          <th scope="col" class="num">Share of capital</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in funding %}
+          <tr{% if row.beyond %} class="funding-beyond{% if row.wall %} funding-wall{% endif %}"{% endif %}>
+            <th scope="row" class="entry">
+              {{- row.losses }}{% if row.wall %} <span class="funding-wall__tag">wall</span>{% endif -%}
+            </th>
+            <td class="num"><span class="cell-label">Keep in account</span>{{ row.keep|money }}</td>
+            <td class="num elsewhere">
+              <span class="cell-label">Held elsewhere</span>
+              {%- if row.beyond -%}
+                over capital by {{ (-row.elsewhere)|money }}
+              {%- else -%}
+                {{ row.elsewhere|money }}
+              {%- endif -%}
+            </td>
+            <td class="num share">
+              <span class="cell-label">Share of capital</span>
+              {%- if row.share < 10000 -%}
+                {{ "%.1f"|format(row.share * 100) }}%
+              {%- else -%}
+                {{ (row.share * 100)|money }}%
+              {%- endif -%}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% set wall_row = funding | selectattr("wall") | first %}
+  {% if wall_row %}
+    <p class="funding__note">
+      From {{ wall_row.losses }} losses on, the account would need more than the whole capital —
+      <span class="figure">${{ wall_row.keep|money }}</span> for the first of them. That is the
+      wall. The rows after it show what each further loss would take, up to the entry cap.
+    </p>
+  {% endif %}
+</section>

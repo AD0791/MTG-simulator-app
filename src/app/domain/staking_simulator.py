@@ -24,10 +24,14 @@ adder_profit is the default -- it is what every stored run before the
 StakingTable.build(config) is the entry point: pass a StakingConfig, get
 back a fully populated StakingTable. Everything is a dataclass DTO, so the
 whole result serializes straight out of an API response.
+
+required_balances(config) answers the funding question instead: the balance
+the account must hold to absorb each number of straight losses, with no wall
+-- for a trader who keeps most of the capital outside the account.
 """
 
 from dataclasses import dataclass, field, asdict
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, Iterator, List, Optional
 import json
 import math
 
@@ -108,6 +112,45 @@ class StakingConfig:
             )
 
 
+def stakes(config: StakingConfig) -> Iterator[tuple[str, float]]:
+    """Every stake the plan places, in order, as if every entry loses and the
+    account never runs dry: the openers, then derived stakes until
+    max_entries entries in all (the openers are always placed).
+
+    No stake reads the balance -- each is sized from the streak alone -- so
+    this is the ladder with the wall taken away. build() walks it and stops at
+    the first stake the balance cannot cover.
+    """
+    openers: List[tuple[str, float]] = (
+        [("1a", config.entry_1a), ("1b", config.entry_1b)]
+        if config.entry_1b is not None
+        else [("1", config.entry_1a)]
+    )
+    yield from openers
+
+    stake_for = STRATEGIES[config.strategy]
+    cumulative_loss = sum(stake for _, stake in openers)
+    # The previous candle's stake: on candle 2 that is every opener together.
+    last_stake = cumulative_loss
+    for candle in range(2, config.max_entries - len(openers) + 2):
+        stake = stake_for(cumulative_loss, last_stake, config.target_profit, config.payout_ratio)
+        yield str(candle), stake
+        cumulative_loss += stake
+        last_stake = stake
+
+
+def required_balances(config: StakingConfig) -> List[float]:
+    """The balance the account must hold to absorb 1, 2, 3, ... straight
+    losses: the running total of stakes(), past the wall and up to
+    max_entries. Capital plays no part -- compare against it to find the wall."""
+    required: List[float] = []
+    total = 0.0
+    for _, stake in stakes(config):
+        total += stake
+        required.append(round(total, 2))
+    return required
+
+
 @dataclass
 class EntryRow:
     label: str               # "1a", "1b", "2", "3", ...
@@ -132,42 +175,13 @@ class StakingTable:
         balance = config.capital
         cumulative_loss = 0.0
 
-        manual_entries: List[tuple[str, float]] = (
-            [("1a", config.entry_1a), ("1b", config.entry_1b)]
-            if config.entry_1b is not None
-            else [("1", config.entry_1a)]
-        )
-
-        entry_number = 0
-        for label, stake in manual_entries:
-            entry_number += 1
+        for entry_number, (label, stake) in enumerate(stakes(config), start=1):
             if stake > balance:
                 table._hit_wall(stake, balance, entry_number)
                 return table
             balance, cumulative_loss = table._record(
                 label, stake, balance, cumulative_loss, entry_number
             )
-
-        stake_for = STRATEGIES[config.strategy]
-        # The previous candle's stake: on candle 2 that is every opener together.
-        last_stake = sum(stake for _, stake in manual_entries)
-
-        candle = 2
-        while entry_number < config.max_entries:
-            entry_number += 1
-            stake = stake_for(
-                cumulative_loss, last_stake, config.target_profit, config.payout_ratio
-            )
-
-            if stake > balance:
-                table._hit_wall(stake, balance, entry_number)
-                return table
-
-            balance, cumulative_loss = table._record(
-                str(candle), stake, balance, cumulative_loss, entry_number
-            )
-            last_stake = stake
-            candle += 1
 
         return table
 

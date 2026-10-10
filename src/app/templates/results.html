@@ -72,6 +72,10 @@
 
 {% include "partials/_results_table.html" %}
 
+{% with funding_heading = "h2" %}
+  {% include "partials/_funding_table.html" %}
+{% endwith %}
+
 {% if simulation.run_group %}
   <p class="note">
     Part of a comparison. <a href="/results/group/{{ simulation.run_group }}">See every strategy in this run</a>.

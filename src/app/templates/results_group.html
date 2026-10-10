@@ -48,14 +48,17 @@
 
     {# One `with`, so what the table receives is stated once. A second copy
        inside the collapsed branch would only have to be kept in step. #}
-    {% with ladder = table.ladder, wall = table.wall, badge = table.badge %}
+    {% with ladder = table.ladder, wall = table.wall, badge = table.badge,
+            funding = table.funding, funding_heading = "h3" %}
       {% if table.collapsed %}
         <details class="ladder-reveal">
           <summary>Show the ladder</summary>
           {% include "partials/_results_table.html" %}
+          {% include "partials/_funding_table.html" %}
         </details>
       {% else %}
         {% include "partials/_results_table.html" %}
+        {% include "partials/_funding_table.html" %}
       {% endif %}
     {% endwith %}
   </div>

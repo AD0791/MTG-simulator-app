@@ -1,9 +1,9 @@
 """Runs as the JSON API presents them.
 
 The API returns view models, not rows: every ladder entry carries its exposure
-and drawdown bands, and a run carries its wall share and opener badge. Each
-figure is classified by the same `bands` functions the HTML pages use, so a
-client restates no threshold and the two surfaces cannot disagree.
+and drawdown bands, and a run carries its wall share, opener badge and funding
+table. Each figure is classified by the same `bands` functions the HTML pages
+use, so a client restates no threshold and the two surfaces cannot disagree.
 
 Read paths only — nothing here writes, so nothing here logs.
 """
@@ -15,6 +15,7 @@ from ..domain.staking_simulator import STRATEGIES, StakingConfig, StakingTable
 from ..models import Simulation
 from ..schemas import (
     EntryRead,
+    FundingRead,
     LadderRead,
     OpenerBadgeQuery,
     OpenerBadgeRead,
@@ -57,6 +58,7 @@ def simulation_read(simulation: Simulation) -> SimulationRead:
             EntryRead(position=entry.position, **asdict(row))
             for entry, row in zip(simulation.entries, rows, strict=True)
         ],
+        funding=_funding(bands.config_of(simulation)),
     )
 
 
@@ -91,6 +93,7 @@ def ladder_read(plan: SimulationCreate) -> LadderRead:
             EntryRead(position=position, **asdict(row))
             for position, row in enumerate(rows, start=1)
         ],
+        funding=_funding(config),
     )
 
 
@@ -107,6 +110,10 @@ def opener_suggestion_read(query: OpenerSuggestionQuery) -> OpenerSuggestionRead
     return OpenerSuggestionRead(
         derivation=OpenerDerivationRead.model_validate(derivation) if derivation else None
     )
+
+
+def _funding(config: StakingConfig) -> list[FundingRead]:
+    return [FundingRead.model_validate(row) for row in bands.funding(config)]
 
 
 def _badge(

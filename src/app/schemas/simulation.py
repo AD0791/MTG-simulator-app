@@ -276,6 +276,23 @@ class EntryRead(BaseModel):
     short_recovery: bool
 
 
+class FundingRead(BaseModel):
+    """What the account must hold to absorb `losses` straight losses, and what
+    that leaves of the capital to hold elsewhere."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    losses: int
+    keep: float
+    # Negative on a `beyond` row: by how much covering it exceeds capital.
+    elsewhere: float
+    share: float
+    # True on every row the capital cannot cover — from the wall on.
+    beyond: bool
+    # True on the first `beyond` row only: the entry the plan could not place.
+    wall: bool
+
+
 class OpenerBadgeRead(BaseModel):
     """What every opener winning returns — the ordinary case beside the ladder's worst."""
 
@@ -348,6 +365,8 @@ class SimulationRead(SimulationSummary):
     wall_share: float | None
     opener_badge: OpenerBadgeRead
     entries: list[EntryRead]
+    # The balance to keep in the account for each number of losses covered.
+    funding: list[FundingRead]
 
 
 class LadderRead(BaseModel):
@@ -368,6 +387,7 @@ class LadderRead(BaseModel):
     losses_survived: int
     opener_badge: OpenerBadgeRead
     entries: list[EntryRead]
+    funding: list[FundingRead]
 
 
 class RunGroupRead(BaseModel):

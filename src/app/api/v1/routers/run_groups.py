@@ -24,9 +24,7 @@ router = APIRouter(prefix="/run-groups")
     summary="Run one plan under one or more strategies and store every result",
 )
 def create_run_group(plan: RunGroupCreate, session: SessionDep) -> RunGroupRead:
-    simulations = simulation_service.run_and_store_group(
-        session, plan.to_creates(), target_profit_percent=plan.recorded_target_percent
-    )
+    simulations = simulation_service.run_and_store_group(session, plan.to_creates())
     return presentation.run_group_read(simulations)
 
 

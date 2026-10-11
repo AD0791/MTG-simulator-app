@@ -33,18 +33,19 @@ class Simulation(Base, TimestampMixin):
     entry_1b: Mapped[float | None]
     second_entry: Mapped[float | None]
     payout_ratio: Mapped[float]
-    target_profit: Mapped[float]
-    # Set only when target_profit was entered as a percentage of capital —
-    # the web form's only mode. Null for a row from the JSON API, or any
-    # row recorded before this existed: an absolute target_profit with no
-    # percentage basis to record.
+    # The share of capital each opener was sized at: entry_1a (and entry_1b,
+    # when there is one) = capital * risk_percent / 100, rounded to the cent.
+    # Null for a row recorded before openers were sized this way.
+    risk_percent: Mapped[float | None] = mapped_column(default=None)
+    # Legacy, no longer written: the target profit that drove the removed
+    # adder_profit strategy. Kept nullable, like second_entry, so stored rows
+    # keep their data.
+    target_profit: Mapped[float | None] = mapped_column(default=None)
     target_profit_percent: Mapped[float | None] = mapped_column(default=None)
     max_entries: Mapped[int]
-    # One of the STRATEGIES names in `domain.staking_simulator`. Server-side
-    # default so the rows recorded before this method existed read as what
-    # they actually were computed with — adder_profit.
+    # One of the STRATEGIES names in `domain.staking_simulator`.
     strategy: Mapped[str] = mapped_column(
-        String(20), default="adder_profit", server_default="adder_profit"
+        String(20), default="adder_breakeven", server_default="adder_breakeven"
     )
 
     # Outcome.

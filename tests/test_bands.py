@@ -14,181 +14,70 @@ from app.domain.staking_simulator import (
     StakingConfig,
     StakingTable,
 )
+from app.schemas import SimulationCreate
 from app.services.bands import (
+    REFERENCE_CONFIG,
     band_for,
+    config_for,
     drawdown_band_for,
     funding,
     ladder,
     opener_badge,
-    opener_derivation,
     recovery_gain,
-    suggested_opener,
     worked_example,
 )
 
 
-def test_opener_badge_with_no_target_reports_a_plain_profit() -> None:
-    badge = opener_badge(
-        capital=1000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92, target_profit=0.0
-    )
+def test_opener_badge_reports_what_both_openers_return() -> None:
+    badge = opener_badge(capital=1000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92)
 
     assert badge.profit == 9.2
     assert badge.balance == 1009.2
-    assert badge.target is None
-    assert badge.meets_target is None
-
-
-def test_opener_badge_reports_a_shortfall_below_target() -> None:
-    badge = opener_badge(
-        capital=1000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92, target_profit=10.0
-    )
-
-    assert badge.profit == 9.2
-    assert badge.target == 10.0
-    assert badge.meets_target is False
-
-
-def test_opener_badge_reports_clearing_a_target() -> None:
-    badge = opener_badge(
-        capital=1000.0, entry_1a=6.0, entry_1b=6.0, payout_ratio=0.92, target_profit=10.0
-    )
-
-    assert badge.profit == 11.04
-    assert badge.meets_target is True
-
-
-def test_opener_badge_treats_exactly_meeting_the_target_as_a_pass() -> None:
-    badge = opener_badge(
-        capital=1000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92, target_profit=9.2
-    )
-
-    assert badge.meets_target is True
+    assert badge.opener_count == 2
 
 
 def test_opener_badge_is_identical_regardless_of_capital_or_strategy() -> None:
     """It depends only on the openers and the payout — not on capital, and
     the caller never passes a strategy at all, which is the point: neither
     strategy has acted before the streak starts."""
-    small = opener_badge(
-        capital=100.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92, target_profit=0.0
-    )
-    large = opener_badge(
-        capital=1_000_000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92, target_profit=0.0
-    )
+    small = opener_badge(capital=100.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92)
+    large = opener_badge(capital=1_000_000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92)
 
     assert small.profit == large.profit == 9.2
 
 
-def test_suggested_opener_matches_the_roadmap_worked_example() -> None:
-    # T=$10, p=0.92: ceil(10 / 1.84) = $6 each, returning $11.04 — clears $10.
-    assert suggested_opener(10.0, 0.92) == 6
-
-
-def test_suggested_opener_clears_the_target_it_was_derived_from() -> None:
-    payout_ratio = 0.92
-    target = 10.0
-    opener = suggested_opener(target, payout_ratio)
-    assert opener is not None
-
-    badge = opener_badge(
-        capital=1000.0,
-        entry_1a=opener,
-        entry_1b=opener,
-        payout_ratio=payout_ratio,
-        target_profit=target,
-    )
-    assert badge.meets_target is True
-
-
-def test_suggested_opener_is_none_at_zero_or_negative_target() -> None:
-    """A zero target derives a zero opener, which the domain rejects — the
-    caller falls back to the reader's own values instead."""
-    assert suggested_opener(0.0, 0.92) is None
-    assert suggested_opener(-5.0, 0.92) is None
-
-
-@pytest.mark.parametrize("payout_ratio", [0.0, -0.5, 1.5])
-@pytest.mark.parametrize("target", [0.0, 50.0])
-def test_an_impossible_payout_is_refused_before_anything_divides_by_it(
-    payout_ratio: float, target: float
-) -> None:
-    """The domain's own payout rule, not a second copy — checked before the
-    target, so a zero payout is refused whether or not a target is set."""
-    with pytest.raises(InvalidStakingConfig) as caught:
-        opener_derivation(target, payout_ratio)
-    assert caught.value.field == "payout_ratio"
-
-
-def test_opener_derivation_matches_the_roadmaps_worked_example() -> None:
-    # T=$50, p=0.92: ceil(50 / 1.84) = $28 each, returning $51.52, clearing by $1.52.
-    calc = opener_derivation(50.0, 0.92)
-
-    assert calc is not None
-    assert calc.opener == 28
-    assert calc.returns == 51.52
-    assert calc.surplus == 1.52
-
-
-def test_opener_derivation_agrees_with_suggested_opener() -> None:
-    """Not a second computation — the same seam, shown."""
-    calc = opener_derivation(50.0, 0.92)
-
-    assert calc is not None
-    assert calc.opener == suggested_opener(50.0, 0.92)
-
-
-def test_opener_derivation_is_none_at_a_zero_target() -> None:
-    assert opener_derivation(0.0, 0.92) is None
-
-
-# --- A single first entry (opener_count=1) --------------------------------
-
-
 def test_opener_badge_sums_a_single_opener() -> None:
-    badge = opener_badge(
-        capital=1000.0, entry_1a=5.0, entry_1b=None, payout_ratio=0.92, target_profit=0.0
-    )
+    badge = opener_badge(capital=1000.0, entry_1a=5.0, entry_1b=None, payout_ratio=0.92)
 
     assert badge.profit == 4.6
     assert badge.balance == 1004.6
     assert badge.opener_count == 1
 
 
-def test_opener_badge_opener_count_is_two_with_both_openers() -> None:
-    badge = opener_badge(
-        capital=1000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92, target_profit=0.0
-    )
-    assert badge.opener_count == 2
+# --- config_for: the one conversion from a request to a plan -----------------
 
 
-def test_suggested_opener_at_one_opener_matches_the_roadmap_worked_example() -> None:
-    # T=$50, p=0.92, n=1: ceil(50 / 0.92) = $55.
-    assert suggested_opener(50.0, 0.92, opener_count=1) == 55
+def test_config_for_sizes_both_openers_from_the_risk() -> None:
+    """The user's own example: 0.25% of $3534.68 is $8.8367, so $8.84 each."""
+    config = config_for(SimulationCreate(capital=3534.68, risk_percent=0.25))
+
+    assert (config.entry_1a, config.entry_1b) == (8.84, 8.84)
 
 
-def test_suggested_opener_at_two_openers_is_unchanged() -> None:
-    assert suggested_opener(50.0, 0.92, opener_count=2) == 28
-    assert suggested_opener(50.0, 0.92) == 28
+def test_config_for_sizes_one_opener_and_no_second() -> None:
+    config = config_for(SimulationCreate(capital=3534.68, risk_percent=0.25, opener_count=1))
+
+    assert (config.entry_1a, config.entry_1b) == (8.84, None)
 
 
-def test_opener_derivation_at_one_opener_matches_the_roadmaps_worked_example() -> None:
-    calc = opener_derivation(50.0, 0.92, opener_count=1)
-
-    assert calc is not None
-    assert calc.opener == 55
-    assert calc.returns == 50.6
-    assert calc.surplus == 0.6
-    assert calc.opener_count == 1
+def test_config_for_refuses_a_risk_that_sizes_no_entry() -> None:
+    with pytest.raises(InvalidStakingConfig) as caught:
+        config_for(SimulationCreate(capital=1000.0, risk_percent=0.0))
+    assert caught.value.field == "risk_percent"
 
 
-def test_opener_derivation_at_two_openers_is_unchanged() -> None:
-    calc = opener_derivation(50.0, 0.92, opener_count=2)
-
-    assert calc is not None
-    assert calc.opener == 28
-    assert calc.returns == 51.52
-    assert calc.surplus == 1.52
-    assert calc.opener_count == 2
+def test_the_reference_config_is_half_a_percent_of_a_thousand() -> None:
+    assert (REFERENCE_CONFIG.entry_1a, REFERENCE_CONFIG.entry_1b) == (5.0, 5.0)
 
 
 def test_band_for_thresholds() -> None:

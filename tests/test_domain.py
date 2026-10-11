@@ -6,14 +6,18 @@ and is the regression case for the whole project.
 
 import pytest
 
-from app.domain.staking_simulator import InvalidStakingConfig, StakingConfig, StakingTable
+from app.domain.staking_simulator import (
+    InvalidStakingConfig,
+    StakingConfig,
+    StakingTable,
+    risk_entry,
+)
 
 REFERENCE = {
     "capital": 1000.0,
     "entry_1a": 5.0,
     "entry_1b": 5.0,
     "payout_ratio": 0.92,
-    "target_profit": 0.0,
 }
 
 # label, stake, cumulative_loss, balance
@@ -139,37 +143,47 @@ def test_payout_ratio_of_exactly_one_is_accepted() -> None:
     assert StakingConfig(payout_ratio=1.0).payout_ratio == 1.0
 
 
-def test_negative_target_profit_is_rejected() -> None:
-    with pytest.raises(ValueError, match="target_profit cannot be negative"):
-        StakingConfig(target_profit=-1.0)
+def test_adder_breakeven_is_the_default_strategy() -> None:
+    assert StakingConfig().strategy == "adder_breakeven"
 
 
-def test_adder_profit_is_the_default_strategy() -> None:
-    assert StakingConfig().strategy == "adder_profit"
-
-
-def test_unknown_strategy_is_rejected() -> None:
+@pytest.mark.parametrize("strategy", ["triple", "adder_profit"])
+def test_unknown_strategy_is_rejected(strategy: str) -> None:
+    """adder_profit was removed with target profit; it is now as unknown as any other name."""
     with pytest.raises(ValueError, match="strategy must be one of"):
-        StakingConfig(strategy="triple")
+        StakingConfig(strategy=strategy)
 
 
-def test_adder_breakeven_matches_adder_profit_at_zero_target() -> None:
-    """ceil((cum + 0) / p) is ceil(cum / p) — the same arithmetic, a different name."""
-    breakeven = StakingTable.build(StakingConfig(**REFERENCE, strategy="adder_breakeven"))
-    profit = StakingTable.build(StakingConfig(**REFERENCE, strategy="adder_profit"))
-
-    assert [(r.label, r.stake) for r in breakeven.rows] == [(r.label, r.stake) for r in profit.rows]
+# --- risk_entry: the opening entry as a share of capital ---------------------
 
 
-def test_adder_breakeven_diverges_from_adder_profit_once_a_target_is_set() -> None:
-    breakeven = StakingTable.build(
-        StakingConfig(**{**REFERENCE, "target_profit": 10.0}, strategy="adder_breakeven")
-    )
-    profit = StakingTable.build(
-        StakingConfig(**{**REFERENCE, "target_profit": 10.0}, strategy="adder_profit")
-    )
+def test_risk_entry_rounds_to_the_cent() -> None:
+    """The user's own example: 3534.68 x 0.25% = 8.8367, so $8.84."""
+    assert risk_entry(3534.68, 0.25) == 8.84
 
-    assert breakeven.rows[2].stake != profit.rows[2].stake
+
+def test_risk_entry_sizes_the_reference_openers() -> None:
+    assert risk_entry(1000.0, 0.5) == 5.0
+
+
+def test_risk_entry_rounds_half_up() -> None:
+    """1001 x 0.5% is exactly 5.005 -- half a cent rounds up, not to whichever
+    side of it a float lands."""
+    assert risk_entry(1001.0, 0.5) == 5.01
+
+
+@pytest.mark.parametrize("risk_percent", [0.0, -0.25, 0.0001])
+def test_risk_entry_refuses_a_risk_that_sizes_no_entry(risk_percent: float) -> None:
+    """0.0001% of $1000 is a tenth of a cent, which rounds to nothing."""
+    with pytest.raises(InvalidStakingConfig) as caught:
+        risk_entry(1000.0, risk_percent)
+    assert caught.value.field == "risk_percent"
+
+
+def test_risk_entry_refuses_non_positive_capital() -> None:
+    with pytest.raises(InvalidStakingConfig) as caught:
+        risk_entry(0.0, 0.5)
+    assert caught.value.field == "capital"
 
 
 def test_double_strategy_ladder_matches_row_for_row() -> None:
@@ -183,7 +197,7 @@ def test_double_strategy_ladder_matches_row_for_row() -> None:
     assert actual == DOUBLE_LADDER
 
 
-def test_double_survives_fewer_entries_than_adder_profit() -> None:
+def test_double_survives_fewer_entries_than_adder_breakeven() -> None:
     double = StakingTable.build(StakingConfig(**REFERENCE, strategy="double"))
     adder = StakingTable.build(StakingConfig(**REFERENCE))
 
@@ -247,7 +261,7 @@ def test_single_opener_double_ladder() -> None:
 
 
 def test_single_opener_places_more_entries_but_ends_with_less_cushion() -> None:
-    """Halving the opener buys no extra depth: the adder still places 8 entries,
+    """Dropping the second opener buys no extra depth: the adder still places 8 entries,
     just with less left when the wall arrives — $79 instead of $163."""
     two_openers = StakingTable.build(StakingConfig(**REFERENCE))
     one_opener = StakingTable.build(StakingConfig(**{**REFERENCE, "entry_1b": None}))
@@ -263,7 +277,6 @@ def test_single_opener_places_more_entries_but_ends_with_less_cushion() -> None:
         ("entry_1a", 0.0),
         ("entry_1b", -5.0),
         ("payout_ratio", 1.5),
-        ("target_profit", -1.0),
         ("strategy", "triple"),
     ],
 )

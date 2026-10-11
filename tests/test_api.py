@@ -36,8 +36,8 @@ async def test_reference_case_round_trips_through_the_api(client: AsyncClient) -
     assert [e["label"] for e in body["entries"]] == ["1a", "1b", "2", "3", "4", "5", "6", "7"]
 
 
-async def test_explicit_null_entry_1b_produces_a_single_opener_run(client: AsyncClient) -> None:
-    body = {**REFERENCE_BODY, "entry_1b": None}
+async def test_one_opener_produces_a_single_opener_run(client: AsyncClient) -> None:
+    body = {**REFERENCE_BODY, "opener_count": 1}
     response = await client.post("/api/v1/simulations", json=body)
 
     assert response.status_code == 201
@@ -49,20 +49,31 @@ async def test_explicit_null_entry_1b_produces_a_single_opener_run(client: Async
     assert [e["label"] for e in result["entries"]][:2] == ["1", "2"]
 
 
-async def test_omitting_entry_1b_still_produces_the_two_opener_reference_case(
-    client: AsyncClient,
-) -> None:
-    """The regression proving the contract didn't shift: a caller who never
-    knew about `opener_count` keeps getting exactly what they always got."""
-    body = {k: v for k, v in REFERENCE_BODY.items() if k != "entry_1b"}
-    response = await client.post("/api/v1/simulations", json=body)
+async def test_the_openers_are_the_risk_share_of_capital(client: AsyncClient) -> None:
+    """The user's own example: 0.25% of $3534.68 is $8.8367 — $8.84 on each opener."""
+    body = {**REFERENCE_BODY, "capital": 3534.68, "risk_percent": 0.25}
+    result = (await client.post("/api/v1/simulations", json=body)).json()
 
-    assert response.status_code == 201
-    result = response.json()
-    assert result["wall_required_stake"] == 910
-    assert result["wall_balance_available"] == 163.0
-    assert result["losses_survived"] == 8
-    assert [e["label"] for e in result["entries"]][:2] == ["1a", "1b"]
+    assert (result["entry_1a"], result["entry_1b"], result["risk_percent"]) == (8.84, 8.84, 0.25)
+    assert [e["stake"] for e in result["entries"]][:2] == [8.84, 8.84]
+
+
+async def test_the_defaults_are_the_reference_case(client: AsyncClient) -> None:
+    """0.5% risk and two openers by default: $5 and $5 on $1000."""
+    result = (await client.post("/api/v1/simulations", json={})).json()
+
+    assert (result["entry_1a"], result["entry_1b"]) == (5.0, 5.0)
+    assert (result["wall_required_stake"], result["losses_survived"]) == (910, 8)
+
+
+@pytest.mark.parametrize("field", ["entry_1a", "entry_1b", "target_profit"])
+async def test_a_hand_typed_opener_or_a_target_is_no_longer_accepted(
+    client: AsyncClient, field: str
+) -> None:
+    response = await client.post("/api/v1/simulations", json={**REFERENCE_BODY, field: 5.0})
+
+    assert response.status_code == 422
+    assert [error["field"] for error in response.json()["errors"]] == [field]
 
 
 async def test_stored_run_reads_back_identically(client: AsyncClient) -> None:
@@ -97,10 +108,10 @@ async def test_impossible_payout_is_rejected_by_the_domain_seam(client: AsyncCli
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("capital", -1.0), ("entry_1a", 0.0), ("target_profit", -5.0)],
+    [("capital", -1.0), ("risk_percent", 0.0), ("strategy", "adder_profit")],
 )
 async def test_every_domain_rejection_reaches_the_same_seam(
-    client: AsyncClient, field: str, value: float
+    client: AsyncClient, field: str, value: object
 ) -> None:
     response = await client.post("/api/v1/simulations", json={**REFERENCE_BODY, field: value})
 
@@ -163,7 +174,7 @@ async def test_clearing_every_run_is_soft(client: AsyncClient, session: Session)
     assert all(simulation.deleted_at is not None for simulation in stored)
 
 
-# --- The view model: bands, wall share, badge, target ------------------------
+# --- The view model: bands, wall share, badge, risk --------------------------
 
 
 async def test_a_stored_run_arrives_with_both_ramps_classified(client: AsyncClient) -> None:
@@ -183,19 +194,17 @@ async def test_a_stored_run_arrives_with_its_opener_badge(client: AsyncClient) -
     assert body["opener_badge"] == {
         "profit": 9.2,
         "balance": 1009.2,
-        "target": None,
-        "meets_target": None,
         "opener_count": 2,
     }
 
 
-async def test_the_listing_carries_the_target(client: AsyncClient) -> None:
-    await client.post("/api/v1/simulations", json={**REFERENCE_BODY, "target_profit": 50.0})
+async def test_the_listing_carries_the_risk(client: AsyncClient) -> None:
+    await client.post("/api/v1/simulations", json={**REFERENCE_BODY, "risk_percent": 0.25})
 
     [row] = (await client.get("/api/v1/simulations")).json()
 
-    assert row["target_profit"] == 50.0
-    assert row["target_profit_percent"] is None
+    assert row["risk_percent"] == 0.25
+    assert "target_profit" not in row
 
 
 async def test_strategies_are_listed_in_form_order_with_their_labels(client: AsyncClient) -> None:
@@ -204,7 +213,6 @@ async def test_strategies_are_listed_in_form_order_with_their_labels(client: Asy
     assert response.status_code == 200
     assert response.json() == [
         {"name": "adder_breakeven", "label": "Breakeven recovery"},
-        {"name": "adder_profit", "label": "Profit recovery"},
         {"name": "double", "label": "Double"},
     ]
 
@@ -249,76 +257,53 @@ async def test_an_impossible_ladder_names_the_field_the_domain_refused(
     assert [error["field"] for error in response.json()["errors"]] == ["payout_ratio"]
 
 
-# --- Openers: the badge and the suggestion -----------------------------------
+# --- Openers: the badge ------------------------------------------------------
 
 
 async def test_the_opener_badge_reads_the_reference_case(client: AsyncClient) -> None:
-    params = {"capital": 1000, "entry_1a": 5, "entry_1b": 5, "payout_ratio": 0.92}
+    params = {"capital": 1000, "risk_percent": 0.5, "payout_ratio": 0.92}
 
     response = await client.get("/api/v1/openers/badge", params=params)
 
     assert response.status_code == 200
-    assert response.json() == {
-        "profit": 9.2,
-        "balance": 1009.2,
-        "target": None,
-        "meets_target": None,
-        "opener_count": 2,
-    }
+    assert response.json() == {"profit": 9.2, "balance": 1009.2, "opener_count": 2}
 
 
-async def test_the_opener_badge_resolves_a_percentage_target(client: AsyncClient) -> None:
-    """One opener of $28 returns $25.76 — short of 5% of $1000."""
-    params = {"capital": 1000, "entry_1a": 28, "payout_ratio": 0.92, "target_profit_percent": 5}
+async def test_the_opener_badge_sizes_a_single_opener_from_the_risk(client: AsyncClient) -> None:
+    """One opener of $8.84 (0.25% of $3534.68) returns $8.13 at 92%."""
+    params = {"capital": 3534.68, "risk_percent": 0.25, "opener_count": 1, "payout_ratio": 0.92}
 
     body = (await client.get("/api/v1/openers/badge", params=params)).json()
 
-    assert (body["opener_count"], body["target"], body["meets_target"]) == (1, 50.0, False)
+    assert (body["opener_count"], body["profit"]) == (1, 8.13)
 
 
-async def test_a_suggested_opener_shows_its_working(client: AsyncClient) -> None:
-    params = {"capital": 1000, "payout_ratio": 0.92, "target_profit_percent": 5}
-
-    derivation = (await client.get("/api/v1/openers/suggestion", params=params)).json()[
-        "derivation"
-    ]
-
-    assert derivation["opener"] == 28
-    assert derivation["divisor"] == pytest.approx(1.84)
-    assert (derivation["returns"], derivation["surplus"]) == (51.52, 1.52)
-
-
-async def test_no_opener_is_suggested_without_a_target(client: AsyncClient) -> None:
-    params = {"capital": 1000, "payout_ratio": 0.92}
-
-    response = await client.get("/api/v1/openers/suggestion", params=params)
-
-    assert response.json() == {"derivation": None}
-
-
-@pytest.mark.parametrize("payout_ratio", [0, 1.5])
-async def test_an_impossible_payout_suggestion_is_refused_by_the_domain_rule(
-    client: AsyncClient, payout_ratio: float
+async def test_a_risk_that_sizes_no_opener_is_refused_by_the_domain_rule(
+    client: AsyncClient,
 ) -> None:
-    """Zero would divide by zero; above 1 would size openers for an impossible plan."""
-    params = {"capital": 1000, "payout_ratio": payout_ratio, "target_profit_percent": 5}
+    params = {"capital": 1000, "risk_percent": 0, "payout_ratio": 0.92}
 
-    response = await client.get("/api/v1/openers/suggestion", params=params)
+    response = await client.get("/api/v1/openers/badge", params=params)
 
     assert response.status_code == 422
+    assert [error["field"] for error in response.json()["errors"]] == ["risk_percent"]
+
+
+async def test_the_opener_suggestion_is_gone(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/openers/suggestion", params={"capital": 1000})
+
+    assert response.status_code == 404
     assert response.headers["content-type"].startswith("application/problem+json")
-    assert [error["field"] for error in response.json()["errors"]] == ["payout_ratio"]
 
 
 # --- Run groups: one plan, several strategies --------------------------------
 
 GROUP_BODY = {
     "capital": 1000.0,
-    "entry_1a": 5.0,
-    "entry_1b": 5.0,
+    "risk_percent": 0.25,
+    "opener_count": 2,
     "payout_ratio": 0.92,
-    "target_profit_percent": 5.0,
-    "strategies": ["adder_breakeven", "adder_profit", "double"],
+    "strategies": ["adder_breakeven", "double"],
 }
 
 
@@ -331,8 +316,8 @@ async def test_a_run_group_stores_every_strategy_under_one_id(client: AsyncClien
     assert [run["strategy"] for run in body["simulations"]] == GROUP_BODY["strategies"]
     assert {run["run_group"] for run in body["simulations"]} == {body["run_group"]}
     assert {
-        (run["target_profit"], run["target_profit_percent"]) for run in body["simulations"]
-    } == {(50.0, 5.0)}
+        (run["risk_percent"], run["entry_1a"], run["entry_1b"]) for run in body["simulations"]
+    } == {(0.25, 2.5, 2.5)}
 
 
 async def test_a_single_strategy_group_has_nothing_to_compare(client: AsyncClient) -> None:
@@ -373,7 +358,7 @@ async def test_clearing_a_run_group_is_soft_and_it_is_gone_afterwards(
     stored = session.scalars(
         select(Simulation).where(Simulation.run_group == uuid.UUID(created["run_group"]))
     ).all()
-    assert len(stored) == 3
+    assert len(stored) == 2
     assert all(simulation.deleted_at is not None for simulation in stored)
 
 
@@ -407,11 +392,13 @@ async def test_a_malformed_request_is_a_problem_naming_its_field(client: AsyncCl
     assert [error["field"] for error in body["errors"]] == ["max_entries"]
 
 
-async def test_a_domain_rejection_names_the_entry_it_refused(client: AsyncClient) -> None:
-    response = await client.post("/api/v1/simulations", json={**REFERENCE_BODY, "entry_1b": 0.0})
+async def test_a_domain_rejection_names_the_field_it_refused(client: AsyncClient) -> None:
+    response = await client.post(
+        "/api/v1/simulations", json={**REFERENCE_BODY, "risk_percent": 0.0001}
+    )
 
     assert response.status_code == 422
-    assert [error["field"] for error in response.json()["errors"]] == ["entry_1b"]
+    assert [error["field"] for error in response.json()["errors"]] == ["risk_percent"]
 
 
 @pytest.mark.parametrize(

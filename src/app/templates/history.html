@@ -20,7 +20,7 @@
           <th scope="col" class="num">Capital</th>
           <th scope="col" class="num">Payout</th>
           <th scope="col">Strategy</th>
-          <th scope="col" class="num">Target</th>
+          <th scope="col" class="num">Risk</th>
           <th scope="col" class="num">Survived</th>
           <th scope="col">Outcome</th>
         </tr>
@@ -34,11 +34,9 @@
             <td class="num"><span class="cell-label">Capital</span>${{ "%.2f"|format(run.capital) }}</td>
             <td class="num"><span class="cell-label">Payout</span>{{ "%.2f"|format(run.payout_ratio * 100) }}%</td>
             <td class="cell-wide"><span class="cell-label">Strategy</span>{{ strategy_labels.get(run.strategy, run.strategy) }}</td>
-            <td class="num"><span class="cell-label">Target</span>
-              {%- if run.target_profit_percent -%}
-                {{ "%.0f"|format(run.target_profit_percent) }}%
-              {%- elif run.target_profit -%}
-                ${{ "%.2f"|format(run.target_profit) }}
+            <td class="num"><span class="cell-label">Risk</span>
+              {%- if run.risk_percent -%}
+                {{ "%g"|format(run.risk_percent) }}%
               {%- else -%}
                 &mdash;
               {%- endif -%}

@@ -13,6 +13,7 @@ from fastapi.responses import RedirectResponse, Response
 from pydantic import ValidationError
 
 from ..db import SessionDep
+from ..domain.staking_simulator import InvalidStakingConfig, risk_entry
 from ..log import logger
 from ..models import Simulation
 from ..schemas import RawSimulationForm, SimulationForm
@@ -25,8 +26,7 @@ router = APIRouter(include_in_schema=False)
 DEFAULT_FORM = RawSimulationForm(
     capital="1000",
     payout_percent="92",
-    entry_1a="5",
-    entry_1b="5",
+    risk_percent="0.5",
     opener_count="2",
     strategies=["adder_breakeven", "double"],
 )
@@ -40,10 +40,8 @@ ALL_STRATEGIES = list(bands.STRATEGY_LABELS)
 PRIMARY_FIELDS = {
     "capital",
     "payout_percent",
-    "target_profit_percent",
+    "risk_percent",
     "opener_count",
-    "entry_1a",
-    "entry_1b",
     "strategies",
 }
 
@@ -55,7 +53,7 @@ def _see_other(path: str) -> RedirectResponse:
 
 @router.get("/", summary="Theory and FAQ")
 def index(request: Request) -> Response:
-    example_ladder, example_wall = bands.worked_example("adder_profit")
+    example_ladder, example_wall = bands.worked_example("adder_breakeven")
     double_ladder, double_wall = bands.worked_example("double")
     config = bands.REFERENCE_CONFIG
     return templates.TemplateResponse(
@@ -67,6 +65,7 @@ def index(request: Request) -> Response:
             "wall": example_wall,
             "double_ladder": double_ladder,
             "double_wall": double_wall,
+            "risk_percent": bands.REFERENCE_RISK_PERCENT,
             # Identical for both tables — the openers are shared and neither
             # strategy has acted yet.
             "badge": bands.opener_badge(
@@ -74,7 +73,6 @@ def index(request: Request) -> Response:
                 config.entry_1a,
                 config.entry_1b,
                 config.payout_ratio,
-                config.target_profit,
             ),
         },
     )
@@ -85,7 +83,7 @@ def simulator(request: Request) -> Response:
     return _form(request, DEFAULT_FORM.model_dump(), {})
 
 
-@router.post("/simulator", summary="Run one or more strategies, or suggest openers from a target")
+@router.post("/simulator", summary="Run one or more strategies")
 def submit_simulator(
     request: Request,
     session: SessionDep,
@@ -106,15 +104,10 @@ def submit_simulator(
         logger.info("form.rejected", stage="shape", fields=sorted(errors))
         return _form(request, values, errors, rejected=True)
 
-    if submitted.action == "suggest":
-        return _suggest_openers(request, values, form)
-
     # The same conversion `POST /api/v1/run-groups` receives already made.
     plan = form.to_plan()
     try:
-        simulations = simulation_service.run_and_store_group(
-            session, plan.to_creates(), target_profit_percent=plan.recorded_target_percent
-        )
+        simulations = simulation_service.run_and_store_group(session, plan.to_creates())
     except ValueError as exc:
         errors = form_errors.from_domain(exc)
         # This arm catches the domain rejection, so `plan.rejected` in main.py
@@ -130,66 +123,16 @@ def submit_simulator(
     return _see_other(f"/results/group/{simulations[0].run_group}")
 
 
-def _suggest_openers(request: Request, values: dict[str, Any], form: SimulationForm) -> Response:
-    """Recompute entry_1a/entry_1b from the target and show the arithmetic in
-    a dialog. Never runs a plan or touches the database — suggest, don't
-    seize: the reader can still override the filled-in values before actually
-    submitting."""
-    try:
-        calc = bands.opener_derivation(
-            form.target_profit, form.payout_percent / 100, form.opener_count
-        )
-    except ValueError as exc:
-        # Suggest builds no plan, but it divides by the payout, so an impossible
-        # one is refused by the domain's payout rule — reported beside the field,
-        # exactly as a Run would report it, instead of a 500.
-        errors = form_errors.from_domain(exc)
-        logger.info("form.rejected", stage="suggest", fields=sorted(errors), detail=str(exc))
-        return _form(request, values, errors, rejected=True)
-    # A None `calc` is a real state, not a failure: no target was set, so no
-    # opener could be derived and the dialog says exactly that.
-    logger.info(
-        "openers.suggested",
-        target_profit=form.target_profit,
-        opener_count=form.opener_count,
-        opener=calc.opener if calc is not None else None,
-    )
-
-    if calc is not None:
-        values = {**values, "entry_1a": str(calc.opener)}
-        if form.opener_count == 2:
-            values = {**values, "entry_1b": str(calc.opener)}
-
-    # Pressing Suggest is an explicit "help me set this up" gesture, so it may
-    # reasonably pre-check the strategies the target makes worth comparing.
-    # This must stay scoped to this path only: a plain Run submission must
-    # never rewrite the reader's checkboxes, or unchecking a box and running
-    # would stop meaning what it says. At 0% the defaults are left alone —
-    # adder_profit isn't offered at all there, being identical to breakeven.
-    #
-    # Gated on `calc`, not on the percentage: a percentage of a zero or absent
-    # capital resolves to a zero target, which derives no openers. Asking the
-    # percentage instead would tick every box while the dialog says there is no
-    # target to work from — the two halves of one button contradicting.
-    if calc is not None:
-        values = {**values, "strategies": ALL_STRATEGIES}
-
-    return _form(request, values, {}, calc=calc, show_calc=True)
-
-
 def _form(
     request: Request,
     values: dict[str, Any],
     errors: dict[str, str],
     *,
     rejected: bool = False,
-    calc: bands.OpenerDerivation | None = None,
-    show_calc: bool = False,
 ) -> Response:
     """Render the form. A rejected submission keeps its values and opens the
-    panel holding the offending input. `show_calc` opens the Suggest dialog;
-    `calc` being None with `show_calc` set is a real state — no target was
-    set, and the dialog says so rather than staying silent."""
+    panel holding the offending input."""
+    entry = _preview_entry(values)
     return templates.TemplateResponse(
         request,
         "simulator.html",
@@ -197,26 +140,33 @@ def _form(
             "values": values,
             "errors": errors,
             "advanced_open": bool(set(errors) - PRIMARY_FIELDS - {"__form__"}),
-            "badge": _preview_badge(values),
-            "calc": calc,
-            "show_calc": show_calc,
+            "opener_entry": entry,
+            "badge": _preview_badge(values, entry),
         },
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT if rejected else status.HTTP_200_OK,
     )
 
 
-def _preview_badge(values: dict[str, Any]) -> bands.OpenerBadge:
-    """What the currently-typed entry_1a/entry_1b are worth, recomputed on
-    every render — tolerant of blank or unparsed values, since this renders
-    before anything has necessarily been validated."""
-    capital = _safe_float(values.get("capital"))
-    entry_1b = _safe_float(values.get("entry_1b")) if values.get("opener_count") != "1" else None
+def _preview_entry(values: dict[str, Any]) -> float | None:
+    """The opening entry the typed capital and risk size, by the domain's own
+    rule — or None when they size no entry yet. Tolerant of blank or unparsed
+    values, since this renders before anything has necessarily been validated."""
+    try:
+        return risk_entry(
+            _safe_float(values.get("capital")), _safe_float(values.get("risk_percent"))
+        )
+    except InvalidStakingConfig:
+        return None
+
+
+def _preview_badge(values: dict[str, Any], entry: float | None) -> bands.OpenerBadge:
+    """What the previewed openers are worth if they win, recomputed on every render."""
+    opener = entry or 0.0
     return bands.opener_badge(
-        capital,
-        _safe_float(values.get("entry_1a")),
-        entry_1b,
+        _safe_float(values.get("capital")),
+        opener,
+        opener if values.get("opener_count") != "1" else None,
         _safe_float(values.get("payout_percent")) / 100,
-        capital * _safe_float(values.get("target_profit_percent")) / 100,
     )
 
 
@@ -242,7 +192,6 @@ def _run_view(simulation: Simulation) -> dict[str, Any]:
             simulation.entry_1a,
             simulation.entry_1b,
             simulation.payout_ratio,
-            simulation.target_profit,
         ),
     }
 

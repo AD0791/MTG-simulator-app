@@ -16,10 +16,9 @@
     {%- else %}
       ${{ "%.2f"|format(simulation.entry_1a) }} on the first candle
     {%- endif %}
-    {%- if simulation.target_profit %}
-      &middot; ${{ "%.2f"|format(simulation.target_profit) }} target profit
-      {%- if simulation.target_profit_percent %} ({{ "%.0f"|format(simulation.target_profit_percent) }}% of capital){% endif %}
-    {% endif %}
+    {%- if simulation.risk_percent %}
+      ({{ "%g"|format(simulation.risk_percent) }}% of capital per entry)
+    {%- endif %}
   </p>
 </header>
 

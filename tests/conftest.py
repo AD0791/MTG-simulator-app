@@ -21,25 +21,23 @@ APP_ROOT = Path(__file__).resolve().parents[1]
 
 REFERENCE_BODY = {
     "capital": 1000.0,
-    "entry_1a": 5.0,
-    "entry_1b": 5.0,
+    # 0.5% of $1000 sizes each of the two openers at $5: the reference case.
+    "risk_percent": 0.5,
+    "opener_count": 2,
     "payout_ratio": 0.92,
-    "target_profit": 0.0,
 }
 
 REFERENCE_FORM = {
     "capital": "1000",
     "payout_percent": "92",
-    "entry_1a": "5",
-    "entry_1b": "5",
-    "target_profit_percent": "0",
+    "risk_percent": "0.5",
+    "opener_count": "2",
     "max_entries": "50",
     # Required: an unchecked checkbox is simply absent from a real POST, so
     # `RawSimulationForm.strategies` defaults to empty rather than to some
     # pre-picked set, and an empty selection is a validation error, not a
     # run. One strategy here keeps this form behaving as a single run, not a
-    # comparison. breakeven and profit recovery are identical at this form's
-    # $0 target, so the resulting ladder is the same 910/163/8 case either way.
+    # comparison: the 910/163/8 case.
     "strategies": ["adder_breakeven"],
 }
 

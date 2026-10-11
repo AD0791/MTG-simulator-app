@@ -26,18 +26,17 @@ band names and the raw numbers, classified here once. Colour only reinforces
 what the printed figures already say.
 """
 
-import math
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
 from ..domain.staking_simulator import (
     StakingConfig,
     StakingTable,
-    check_payout_ratio,
     required_balances,
+    risk_entry,
 )
 from ..models import Simulation, SimulationEntry
-from ..schemas.simulation import Band, DrawdownBand
+from ..schemas.simulation import Band, DrawdownBand, SimulationCreate
 
 # Lower bound of each band, highest first.
 BANDS: tuple[tuple[float, Band], ...] = (
@@ -65,7 +64,6 @@ OPENER_LABELS = frozenset({"1", "1a", "1b"})
 # Reader-facing names for the STRATEGIES keys in `domain.staking_simulator`.
 STRATEGY_LABELS = {
     "adder_breakeven": "Breakeven recovery",
-    "adder_profit": "Profit recovery",
     "double": "Double",
 }
 
@@ -205,6 +203,21 @@ def funding(config: StakingConfig) -> list[FundingRow]:
     return rows
 
 
+def config_for(plan: SimulationCreate) -> StakingConfig:
+    """The one conversion from a request to a plan: each opener is
+    `risk_entry(capital, risk_percent)`, and one opener means no `entry_1b`.
+    Raises the domain's own rejection for a risk or capital that sizes no entry."""
+    entry = risk_entry(plan.capital, plan.risk_percent)
+    return StakingConfig(
+        capital=plan.capital,
+        entry_1a=entry,
+        entry_1b=entry if plan.opener_count == 2 else None,
+        payout_ratio=plan.payout_ratio,
+        max_entries=plan.max_entries,
+        strategy=plan.strategy,
+    )
+
+
 def config_of(simulation: Simulation) -> StakingConfig:
     """The plan a stored run was built from, ready to rebuild or extend."""
     return StakingConfig(
@@ -212,7 +225,6 @@ def config_of(simulation: Simulation) -> StakingConfig:
         entry_1a=simulation.entry_1a,
         entry_1b=simulation.entry_1b,
         payout_ratio=simulation.payout_ratio,
-        target_profit=simulation.target_profit,
         max_entries=simulation.max_entries,
         strategy=simulation.strategy,
     )
@@ -242,8 +254,6 @@ class OpenerBadge:
 
     profit: float
     balance: float
-    target: float | None  # None when no target profit is set
-    meets_target: bool | None  # None when `target` is None
     opener_count: int  # 1 or 2 — lets the template say "the opener" vs "both openers"
 
 
@@ -252,87 +262,21 @@ def opener_badge(
     entry_1a: float,
     entry_1b: float | None,
     payout_ratio: float,
-    target_profit: float,
 ) -> OpenerBadge:
     openers = entry_1a + entry_1b if entry_1b is not None else entry_1a
     profit = round(openers * payout_ratio, 2)
-    target = target_profit if target_profit > 0 else None
     return OpenerBadge(
         profit=profit,
         balance=round(capital + profit, 2),
-        target=target,
-        meets_target=(profit >= target) if target is not None else None,
         opener_count=2 if entry_1b is not None else 1,
-    )
-
-
-def suggested_opener(
-    target_profit: float, payout_ratio: float, opener_count: int = 2
-) -> float | None:
-    """The equal opener that clears `target_profit` the moment every opener
-    wins: `a = ceil(target / (opener_count * payout))`.
-
-    None when there is no target to clear — a zero or negative target derives
-    a zero or negative opener, which the domain rightly rejects, so the form
-    falls back to whatever the reader already typed rather than seizing it.
-
-    An impossible payout raises the domain's own `InvalidStakingConfig` before
-    anything divides by it, whether or not there is a target.
-    """
-    check_payout_ratio(payout_ratio)
-    if target_profit <= 0:
-        return None
-    return math.ceil(target_profit / (opener_count * payout_ratio))
-
-
-@dataclass(frozen=True)
-class OpenerDerivation:
-    """The worked arithmetic behind `suggested_opener`, laid out for the
-    Suggest dialog: target, payout, opener count, divisor, the exact quotient
-    before rounding up, the opener, what every opener winning returns, and
-    the surplus over the target the ceiling leaves."""
-
-    target: float
-    payout_ratio: float
-    opener_count: int
-    divisor: float
-    exact: float
-    opener: float
-    returns: float
-    surplus: float
-
-
-def opener_derivation(
-    target_profit: float, payout_ratio: float, opener_count: int = 2
-) -> OpenerDerivation | None:
-    """The same rule as `suggested_opener`, shown rather than recomputed.
-
-    `opener` comes from calling `suggested_opener` directly — this function
-    only assembles the intermediate figures around that one result, so the
-    dialog can never drift from the value the form actually uses. None
-    exactly when `suggested_opener` is: a target of $0 or below derives no
-    opener at all.
-    """
-    opener = suggested_opener(target_profit, payout_ratio, opener_count)
-    if opener is None:
-        return None
-    divisor = opener_count * payout_ratio
-    returns = round(opener_count * opener * payout_ratio, 2)
-    return OpenerDerivation(
-        target=target_profit,
-        payout_ratio=payout_ratio,
-        opener_count=opener_count,
-        divisor=divisor,
-        exact=target_profit / divisor,
-        opener=opener,
-        returns=returns,
-        surplus=round(returns - target_profit, 2),
     )
 
 
 # The published reference case. The landing page renders it by running the
 # simulator, so the worked example can never drift from what the tool produces.
-REFERENCE_CONFIG = StakingConfig(capital=1000.0, entry_1a=5.0, entry_1b=5.0, payout_ratio=0.92)
+# 0.5% of $1000 sizes each opener at $5.
+REFERENCE_RISK_PERCENT = 0.5
+REFERENCE_CONFIG = config_for(SimulationCreate(capital=1000.0, risk_percent=REFERENCE_RISK_PERCENT))
 
 
 def table_ladder(table: StakingTable) -> tuple[list[LadderRow], WallRow | None]:
@@ -345,7 +289,7 @@ def table_ladder(table: StakingTable) -> tuple[list[LadderRow], WallRow | None]:
     return rows, _wall(table.wall_required_stake, table.wall_balance_available)
 
 
-def worked_example(strategy: str = "adder_profit") -> tuple[list[LadderRow], WallRow | None]:
+def worked_example(strategy: str = "adder_breakeven") -> tuple[list[LadderRow], WallRow | None]:
     """The reference case, run under any strategy — same capital and openers,
     so the landing page can show more than one method side by side."""
     return table_ladder(StakingTable.build(replace(REFERENCE_CONFIG, strategy=strategy)))

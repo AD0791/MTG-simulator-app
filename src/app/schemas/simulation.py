@@ -2,7 +2,7 @@
 
 These carry types, required fields, and limits that protect the *server*. They
 deliberately do **not** restate the domain's rules — capital must be positive, a
-payout ratio must sit in (0, 1], a target profit cannot be negative. Those live
+payout ratio must sit in (0, 1], a risk must give an entry above $0. Those live
 in `StakingConfig.__post_init__`, which protects the calculation from every
 caller, and a second copy here would drift from it.
 
@@ -15,17 +15,12 @@ domain only ever knows one strategy at a time (`StakingConfig.strategy`), so
 "at least one strategy chosen" is policed here, in `Field(min_length=1)`, and
 each individual name is left to the same domain rejection a bad payout gets.
 
-The form asks for a target profit as a percentage of capital, the same
-precedent as `payout_percent` — resolved to an absolute dollar amount before the
-domain sees it. `SimulationCreate` stays in absolute dollars: it is a direct
-line to the domain's own units. `RunGroupCreate` takes the percentage, because
-it is the JSON form of one simulator submission and history shows the
-percentage back.
-
-Whether a plan opens with one entry or two is likewise a request-shape
-concern, not a domain one — `SimulationForm.opener_count` resolves to
-`entry_1b=None` in `to_plan()` when one opener is chosen. `StakingConfig` never
-learns a "count" exists; it only ever sees `entry_1b` as `float | None`.
+Nobody types an opening entry. Every request carries `risk_percent`, and each
+opener is `capital * risk_percent / 100` rounded to the cent — the domain's
+`risk_entry`, applied once in `services/bands.config_for`. Whether a plan opens
+with one entry or two is a request-shape concern too: `opener_count` resolves to
+`entry_1b=None` there. `StakingConfig` never learns a "count" or a percentage
+exists; it only ever sees the resolved amounts.
 
 The read models are view models, not rows. Every ladder entry carries its
 exposure and drawdown bands, and a run carries its wall share and opener badge —
@@ -40,7 +35,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 # A ceiling on the simulated ladder length. This is a request-shape constraint,
 # not a domain rule: it bounds the work one request can ask the server to do.
@@ -53,12 +48,6 @@ Band = Literal["calm", "caution", "elevated", "danger"]
 DrawdownBand = Literal["heavy", "severe", "critical", "terminal"]
 
 
-def _percent_of(capital: float, percent: float) -> float:
-    """A target entered as a percentage, resolved to dollars with capital as the
-    reference point — the only form the domain ever sees."""
-    return capital * percent / 100
-
-
 class SimulationCreate(BaseModel):
     """A staking plan to simulate.
 
@@ -69,54 +58,43 @@ class SimulationCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     capital: float = 1000.0
-    entry_1a: float = 5.0
-    entry_1b: float | None = 5.0
+    # Each opening entry is this share of capital, rounded to the cent. 0.5% of
+    # the default $1000 is the reference case's $5.
+    risk_percent: float = 0.5
+    opener_count: int = Field(default=2, ge=1, le=2)
     payout_ratio: float = 0.92
-    target_profit: float = 0.0
     max_entries: int = Field(default=50, ge=1, le=MAX_ENTRIES_CEILING)
     # One of STRATEGIES in `domain.staking_simulator`. Not constrained to a
     # Literal here — an unknown name is a domain rejection, same seam as an
     # impossible payout, not a second copy of the check.
-    strategy: str = "adder_profit"
+    strategy: str = "adder_breakeven"
 
 
 class RunGroupCreate(BaseModel):
     """One plan run under one or more strategies — a simulator submission as JSON.
 
     Two or more strategies share a `run_group` id; one strategy behaves exactly
-    like `POST /simulations`. The target is a percentage of capital, stored as
-    provenance and resolved to dollars in `to_creates()`.
+    like `POST /simulations`.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     capital: float = 1000.0
-    entry_1a: float = 5.0
-    entry_1b: float | None = 5.0
+    risk_percent: float = 0.5
+    opener_count: int = Field(default=2, ge=1, le=2)
     payout_ratio: float = 0.92
-    target_profit_percent: float = 0.0
     max_entries: int = Field(default=50, ge=1, le=MAX_ENTRIES_CEILING)
     # Each name is left to the domain's rejection, same as `SimulationCreate.strategy`.
     strategies: list[str] = Field(min_length=1)
-
-    @property
-    def target_profit(self) -> float:
-        return _percent_of(self.capital, self.target_profit_percent)
-
-    @property
-    def recorded_target_percent(self) -> float | None:
-        """What a run stores as provenance: the percentage, only when one was chosen."""
-        return self.target_profit_percent if self.target_profit_percent > 0 else None
 
     def to_creates(self) -> list[SimulationCreate]:
         """One `SimulationCreate` per strategy, sharing every other field."""
         return [
             SimulationCreate(
                 capital=self.capital,
-                entry_1a=self.entry_1a,
-                entry_1b=self.entry_1b,
+                risk_percent=self.risk_percent,
+                opener_count=self.opener_count,
                 payout_ratio=self.payout_ratio,
-                target_profit=self.target_profit,
                 max_entries=self.max_entries,
                 strategy=strategy,
             )
@@ -135,13 +113,10 @@ class RawSimulationForm(BaseModel):
 
     capital: str = ""
     payout_percent: str = ""
-    entry_1a: str = "5"
-    entry_1b: str = "5"
-    # "1" or "2" openers. A form concern resolved at the edge, same precedent
-    # as payout_percent and target_profit_percent -- the domain never learns
-    # a "count" exists, only ever `entry_1b` as `float | None`.
+    risk_percent: str = "0.5"
+    # "1" or "2" openers. A form concern resolved at the edge -- the domain
+    # never learns a "count" exists, only ever `entry_1b` as `float | None`.
     opener_count: str = "2"
-    target_profit_percent: str = "0"
     max_entries: str = "50"
     # Checkboxes sharing one `name` post as repeated form keys, which Form()
     # collects into a list the same way repeated query keys do. Defaults to
@@ -151,99 +126,53 @@ class RawSimulationForm(BaseModel):
     # of silently falling back to some pre-picked set of strategies. The
     # simulator page's own suggested checked state lives in `DEFAULT_FORM`.
     strategies: list[str] = Field(default_factory=list)
-    # Which submit button was pressed: "run" simulates and stores; "suggest"
-    # only recomputes entry_1a/entry_1b from the target and re-renders the
-    # form. Two buttons sharing one name, not a second endpoint — see
-    # `web/pages.py`.
-    action: str = "run"
 
 
 class SimulationForm(BaseModel):
     """The browser form's shape.
 
-    It differs from `RunGroupCreate` in two respects: the payout is entered as a
-    percentage, because that is how a broker quotes it, and the second opener is
-    a count rather than a null. `to_plan()` resolves both, so the form and the
-    JSON API reach the service through one conversion.
+    It differs from `RunGroupCreate` in one respect: the payout is entered as a
+    percentage, because that is how a broker quotes it. `to_plan()` resolves it,
+    so the form and the JSON API reach the service through one conversion.
     """
 
     model_config = ConfigDict(extra="ignore")
 
     capital: float
     payout_percent: float
-    entry_1a: float = 5.0
-    entry_1b: float = 5.0
+    risk_percent: float = 0.5
     opener_count: int = Field(default=2, ge=1, le=2)
-    target_profit_percent: float = 0.0
     max_entries: int = Field(default=50, ge=1, le=MAX_ENTRIES_CEILING)
     # No default: always comes from `RawSimulationForm`, which supplies the
     # key on every submission (empty when nothing was checked).
     strategies: list[str] = Field(min_length=1)
 
-    @model_validator(mode="before")
-    @classmethod
-    def _ignore_second_opener_when_one(cls, data: object) -> object:
-        """`entry_1b` is ignored server-side once one opener is requested —
-        see `to_plan()` below. Dropping it here, rather than validating it,
-        is what stops a blank or malformed leftover in a hidden field from
-        rejecting a submission the reader never meant to fill in."""
-        if isinstance(data, dict) and str(data.get("opener_count")) == "1":
-            data = {k: v for k, v in data.items() if k != "entry_1b"}
-        return data
-
-    @property
-    def target_profit(self) -> float:
-        return _percent_of(self.capital, self.target_profit_percent)
-
     def to_plan(self) -> RunGroupCreate:
-        """The form in the API's units: payout as a ratio, a single opener as a null."""
+        """The form in the API's units: payout as a ratio."""
         return RunGroupCreate(
             capital=self.capital,
-            entry_1a=self.entry_1a,
-            entry_1b=self.entry_1b if self.opener_count == 2 else None,
+            risk_percent=self.risk_percent,
+            opener_count=self.opener_count,
             payout_ratio=self.payout_percent / 100,
-            target_profit_percent=self.target_profit_percent,
             max_entries=self.max_entries,
             strategies=self.strategies,
         )
 
 
 class OpenerBadgeQuery(BaseModel):
-    """What the opener badge reads. Omit `entry_1b` for a plan with one opener.
+    """What the opener badge reads.
 
-    No domain rule applies — the badge is arithmetic on whatever was typed, the
-    same tolerance the form's live preview has.
+    The openers are sized from `risk_percent` by the domain's own rule, so a
+    capital or risk that sizes no entry is the same problem a plan gets. The
+    payout is not checked — the badge is arithmetic on it, nothing more.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     capital: float
-    entry_1a: float
-    entry_1b: float | None = None
-    payout_ratio: float
-    target_profit_percent: float = 0.0
-
-    @property
-    def target_profit(self) -> float:
-        return _percent_of(self.capital, self.target_profit_percent)
-
-
-class OpenerSuggestionQuery(BaseModel):
-    """What sizing the openers to a target reads."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    capital: float
-    # Not bounded here: the derivation applies the domain's own payout rule
-    # before it divides, and an impossible payout reaches the same problem seam
-    # as an impossible plan.
-    payout_ratio: float
-    target_profit_percent: float = 0.0
+    risk_percent: float
     opener_count: int = Field(default=2, ge=1, le=2)
-
-    @property
-    def target_profit(self) -> float:
-        return _percent_of(self.capital, self.target_profit_percent)
+    payout_ratio: float
 
 
 class EntryRead(BaseModel):
@@ -299,30 +228,7 @@ class OpenerBadgeRead(BaseModel):
 
     profit: float
     balance: float
-    # Null when no target profit is set; `meets_target` is null with it.
-    target: float | None
-    meets_target: bool | None
     opener_count: int
-
-
-class OpenerDerivationRead(BaseModel):
-    """The worked arithmetic behind a suggested opener, figure by figure."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    target: float
-    payout_ratio: float
-    opener_count: int
-    divisor: float
-    exact: float
-    opener: float
-    returns: float
-    surplus: float
-
-
-class OpenerSuggestionRead(BaseModel):
-    # Null when there is no target above $0 to size the openers against.
-    derivation: OpenerDerivationRead | None
 
 
 class StrategyRead(BaseModel):
@@ -343,11 +249,9 @@ class SimulationSummary(BaseModel):
     # Set only when this run was one of several strategies compared from a
     # single submission; null for a standalone run.
     run_group: UUID | None
-    target_profit: float
-    # Null unless target_profit was entered as a percentage of capital — through
-    # the web form or `POST /run-groups`. A run created with an absolute
-    # target_profit carries no percentage, because none was chosen.
-    target_profit_percent: float | None
+    # The share of capital each opener was sized at. Null for a run recorded
+    # before openers were sized this way, when they were typed by hand.
+    risk_percent: float | None
     wall_hit: bool
     wall_required_stake: float | None
     wall_balance_available: float | None
@@ -373,10 +277,12 @@ class LadderRead(BaseModel):
     run carries, and nothing that identifies or lists it."""
 
     capital: float
+    risk_percent: float
+    opener_count: int
+    # The openers `risk_percent` resolved to; `entry_1b` is null with one opener.
     entry_1a: float
     entry_1b: float | None
     payout_ratio: float
-    target_profit: float
     max_entries: int
     strategy: str
     wall_hit: bool

@@ -40,17 +40,17 @@ async def test_simulator_shows_three_primary_inputs_and_a_collapsed_panel(
 
     assert response.status_code == 200
     body = response.text
-    for field in ("capital", "payout_percent", "target_profit_percent", "entry_1a", "entry_1b"):
+    for field in ("capital", "payout_percent", "risk_percent"):
         assert f'id="{field}"' in body
+    # Nobody types an opener or a target any more.
+    for gone in ("entry_1a", "entry_1b", "target_profit_percent"):
+        assert f'id="{gone}"' not in body
     assert 'id="max_entries"' in body  # the one field still under Advanced
     assert '<details class="advanced">' in body  # collapsed: no `open`
 
 
-async def test_simulator_pre_checks_breakeven_and_double_but_hides_profit_recovery(
-    client: AsyncClient,
-) -> None:
-    """Profit recovery is identical to breakeven at the default $0 target, so
-    it shouldn't be offered until a target above $0 makes it distinct."""
+async def test_simulator_offers_breakeven_and_double_only(client: AsyncClient) -> None:
+    """Profit recovery went with target profit."""
     response = await client.get("/simulator")
 
     body = response.text
@@ -69,9 +69,7 @@ async def test_simulator_shows_the_opener_radio_defaulting_to_two(client: AsyncC
 
 
 async def test_a_one_entry_submission_runs_and_renders(client: AsyncClient) -> None:
-    response = await client.post(
-        "/simulator", data={**REFERENCE_FORM, "opener_count": "1", "entry_1b": ""}
-    )
+    response = await client.post("/simulator", data={**REFERENCE_FORM, "opener_count": "1"})
 
     assert response.status_code == 303
     page = await client.get(response.headers["location"])
@@ -81,40 +79,48 @@ async def test_a_one_entry_submission_runs_and_renders(client: AsyncClient) -> N
     assert "If the opener wins" in page.text
 
 
-async def test_suggest_with_one_entry_fills_the_field_and_shows_the_n_equals_one_working(
-    client: AsyncClient,
+async def test_the_form_previews_the_opening_entry_it_will_place(client: AsyncClient) -> None:
+    """The user's own example, rendered: 0.25% of $3534.68 is $8.84."""
+    form = {**REFERENCE_FORM, "capital": "3534.68", "risk_percent": "0.25", "payout_percent": "x"}
+    response = await client.post("/simulator", data=form)  # rejected, so it re-renders
+
+    assert response.status_code == 422
+    assert "$3,534.68 &times; 0.25 &divide; 100 = $8.84" in response.text
+    assert "on each of the two openers" in response.text
+
+
+@pytest.mark.parametrize(("opener_count", "entry_1b"), [("2", 8.84), ("1", None)])
+async def test_the_stored_openers_are_the_risk_share_of_capital(
+    client: AsyncClient, session: Session, opener_count: str, entry_1b: float | None
 ) -> None:
-    """5% of $1000 is a $50 target: ceil(50 / 0.92) = $55 with one opener."""
+    """Each opener is capital x risk / 100 rounded to the cent, and nothing else."""
     response = await client.post(
         "/simulator",
         data={
             **REFERENCE_FORM,
-            "opener_count": "1",
-            "target_profit_percent": "5",
-            "action": "suggest",
+            "capital": "3534.68",
+            "risk_percent": "0.25",
+            "opener_count": opener_count,
         },
     )
 
-    assert response.status_code == 200
-    body = response.text
-    assert 'value="55"' in body
-    assert "50.00" in body and "0.92" in body and "54.3478" in body
-    assert "$55" in body
-    assert "$50.60" in body
+    assert response.status_code == 303
+    stored = session.scalars(select(Simulation)).one()
+    assert (stored.entry_1a, stored.entry_1b, stored.risk_percent) == (8.84, entry_1b, 0.25)
 
 
-async def test_a_rejected_one_entry_submission_never_points_its_error_at_entry_1b(
-    client: AsyncClient,
+@pytest.mark.parametrize("risk_percent", ["0", "-1", "0.0001"])
+async def test_a_risk_that_sizes_no_entry_is_reported_on_the_risk_field(
+    client: AsyncClient, risk_percent: str
 ) -> None:
     response = await client.post(
-        "/simulator",
-        data={**REFERENCE_FORM, "opener_count": "1", "entry_1a": "0", "entry_1b": ""},
+        "/simulator", data={**REFERENCE_FORM, "risk_percent": risk_percent}
     )
 
     assert response.status_code == 422
-    body = response.text
-    assert 'id="entry_1a-error"' in body
-    assert 'id="entry_1b-error"' not in body
+    assert 'id="risk_percent-error"' in response.text
+    assert "Risk must be above 0%" in response.text
+    assert "Enter a capital and a risk above 0% to size the opening entry." in response.text
 
 
 async def test_submitting_with_no_strategy_checked_is_rejected(client: AsyncClient) -> None:
@@ -141,10 +147,9 @@ async def test_submitting_the_reference_case_redirects_to_its_result(
     assert "910.00" in page.text
     assert "163.00" in page.text
     assert "WALL" in page.text
-    # No target set — the badge shows a plain profit, not a pass/fail.
     assert "If both openers win" in page.text
     assert "+$9.20, balance $1009.20" in page.text
-    assert "badge--short" not in page.text
+    assert "0.5% of capital per entry" in page.text
     # Entry 7's balance cell is 83.7% drawdown — critical band, not a wall row.
     assert 'class="num balance-cell drawdown-critical"' in page.text
     assert "needs +513%" in page.text
@@ -159,127 +164,6 @@ async def test_submitting_the_reference_case_redirects_to_its_result(
     assert "over capital by 747.00" in page.text
     assert page.text.count('class="funding-wall"') == 1
     assert page.text.count("over capital by") == 1
-
-
-async def test_a_target_the_openers_cannot_meet_shows_a_shortfall_badge(
-    client: AsyncClient,
-) -> None:
-    # 1% of $1000 capital is a $10 target.
-    response = await client.post(
-        "/simulator", data={**REFERENCE_FORM, "target_profit_percent": "1"}
-    )
-    page = await client.get(response.headers["location"])
-
-    assert "$0.80 short of the $10.00 target" in page.text
-    assert 'class="badge badge--short"' in page.text
-
-
-async def test_suggest_action_fills_in_openers_without_running(client: AsyncClient) -> None:
-    """1% of $1000 is a $10 target: ceil(10 / 1.84) = $6 each."""
-    response = await client.post(
-        "/simulator",
-        data={**REFERENCE_FORM, "target_profit_percent": "1", "action": "suggest"},
-    )
-
-    assert response.status_code == 200  # re-rendered the form, not a redirect
-    body = response.text
-    assert 'value="6"' in body
-    assert "clears the $10.00 target" in body  # the live preview updates too
-
-
-async def test_suggest_action_shows_the_derivation_and_checks_all_three_strategies(
-    client: AsyncClient,
-) -> None:
-    """5% of $1000 is a $50 target: ceil(50 / 1.84) = $28 each — the
-    roadmap's worked example, verified against the live domain."""
-    response = await client.post(
-        "/simulator",
-        data={**REFERENCE_FORM, "target_profit_percent": "5", "action": "suggest"},
-    )
-
-    assert response.status_code == 200
-    body = response.text
-    assert '<dialog class="calc-modal" open>' in body
-    assert "50.00" in body and "1.84" in body and "27.1739" in body
-    assert "$28" in body
-    assert "51.52" in body and "1.52" in body
-    assert 'value="28"' in body
-    # Suggest is the one path that may pre-check every strategy the target
-    # makes distinct. Plus one for the default "two entries" opener radio.
-    assert body.count("checked>") == 4
-
-
-async def test_suggest_action_with_no_target_leaves_openers_unchanged(
-    client: AsyncClient,
-) -> None:
-    response = await client.post("/simulator", data={**REFERENCE_FORM, "action": "suggest"})
-
-    assert response.status_code == 200
-    body = response.text
-    assert 'value="5"' in body  # REFERENCE_FORM's own entry_1a/1b
-    assert '<dialog class="calc-modal" open>' in body
-    assert "target profit above 0% is needed" in body
-
-
-async def test_suggest_does_not_check_strategies_when_it_cannot_derive_openers(
-    client: AsyncClient,
-) -> None:
-    """A percentage of no capital is no target at all.
-
-    The dialog and the checkboxes must answer the same question. Gating the
-    checkboxes on the percentage instead of on the derivation made them
-    disagree: every box ticked, while the dialog said there was no target to
-    work from.
-    """
-    response = await client.post(
-        "/simulator",
-        data={
-            **REFERENCE_FORM,
-            "capital": "0",
-            "target_profit_percent": "5",
-            "strategies": ["double"],
-            "action": "suggest",
-        },
-    )
-
-    assert response.status_code == 200
-    body = response.text
-    assert "target profit above 0% is needed" in body
-    # The one strategy the reader chose, untouched, plus the default opener radio.
-    assert body.count("checked>") == 2
-
-
-async def test_running_with_a_target_set_does_not_seize_the_checked_strategies(
-    client: AsyncClient,
-) -> None:
-    """Suggest may pre-check every strategy once a target is set; a plain Run
-    must never do the same — unchecking a box and running has to mean what
-    it says."""
-    response = await client.post(
-        "/simulator",
-        data={**REFERENCE_FORM, "target_profit_percent": "5", "strategies": ["double"]},
-    )
-
-    assert response.status_code == 303
-    assert "/group/" not in response.headers["location"]  # exactly one strategy ran
-
-
-async def test_suggested_openers_stay_editable_and_still_run(
-    client: AsyncClient, session: Session
-) -> None:
-    """Suggest, don't seize: the reader can override the filled-in pair and
-    the plan still runs with what they actually typed."""
-    response = await client.post(
-        "/simulator",
-        data={**REFERENCE_FORM, "target_profit_percent": "1", "entry_1a": "5", "entry_1b": "5"},
-    )
-
-    assert response.status_code == 303
-    stored = session.scalars(select(Simulation)).one()
-    assert stored.entry_1a == 5.0
-    assert stored.entry_1b == 5.0
-    assert stored.target_profit == 10.0
-    assert stored.target_profit_percent == 1.0
 
 
 async def test_selecting_one_strategy_behaves_as_a_single_run(client: AsyncClient) -> None:
@@ -330,13 +214,13 @@ async def test_comparison_page_collapses_only_the_breakeven_ladder(
 ) -> None:
     response = await client.post(
         "/simulator",
-        data={**REFERENCE_FORM, "strategies": ["adder_breakeven", "adder_profit", "double"]},
+        data={**REFERENCE_FORM, "strategies": ["adder_breakeven", "double"]},
     )
     page = await client.get(response.headers["location"])
     body = page.text
 
-    # All three tiles stay in the summary strip — the demotion never touches it.
-    assert body.count('<li class="stat') == 3
+    # Both tiles stay in the summary strip — the demotion never touches it.
+    assert body.count('<li class="stat') == 2
     assert body.count('<details class="ladder-reveal">') == 1
     assert "Show the ladder" in body
 
@@ -374,14 +258,14 @@ async def test_a_rejected_plan_keeps_its_values_and_names_the_field(
     client: AsyncClient,
 ) -> None:
     response = await client.post(
-        "/simulator", data={**REFERENCE_FORM, "capital": "-50", "target_profit_percent": "7"}
+        "/simulator", data={**REFERENCE_FORM, "capital": "-50", "risk_percent": "0.75"}
     )
 
     assert response.status_code == 422
     body = response.text
     assert 'id="capital-error"' in body
     assert 'value="-50"' in body  # the submitted value is preserved
-    assert 'value="7"' in body  # ...and so are the ones that were fine
+    assert 'value="0.75"' in body  # ...and so are the ones that were fine
 
 
 async def test_a_non_numeric_entry_is_reported_on_its_own_field(client: AsyncClient) -> None:
@@ -404,32 +288,8 @@ async def test_an_impossible_payout_is_reported_in_the_forms_own_units(
     assert "no more than 100%" in response.text
 
 
-async def test_suggest_at_a_zero_payout_is_reported_rather_than_crashing(
-    client: AsyncClient,
-) -> None:
-    """Suggest divides by the payout. At 0% it raised ZeroDivisionError and
-    returned 500; the domain's payout rule now refuses it beside the field."""
-    response = await client.post(
-        "/simulator",
-        data={
-            **REFERENCE_FORM,
-            "payout_percent": "0",
-            "target_profit_percent": "5",
-            "action": "suggest",
-        },
-    )
-
-    assert response.status_code == 422
-    body = response.text
-    assert 'id="payout_percent-error"' in body
-    assert "above 0%" in body
-    assert '<dialog class="calc-modal" open>' not in body
-    assert 'value="28"' not in body  # nothing was suggested into the openers
-
-
 async def test_an_advanced_field_error_opens_the_advanced_panel(client: AsyncClient) -> None:
-    """max_entries is the one remaining field under Advanced; target_profit_percent
-    moved to the primary set in item 4 and no longer exercises this."""
+    """max_entries is the one remaining field under Advanced."""
     response = await client.post("/simulator", data={**REFERENCE_FORM, "max_entries": "0"})
 
     assert response.status_code == 422
@@ -492,15 +352,13 @@ async def test_history_shows_the_strategy_and_links_a_comparison_to_its_group(
     assert "/results/group/" in listed.text
 
 
-async def test_history_shows_the_target_as_a_percentage_when_that_is_what_was_typed(
-    client: AsyncClient,
-) -> None:
-    await client.post("/simulator", data={**REFERENCE_FORM, "target_profit_percent": "1"})
+async def test_history_shows_the_risk_each_opener_was_sized_at(client: AsyncClient) -> None:
+    await client.post("/simulator", data={**REFERENCE_FORM, "risk_percent": "0.25"})
 
     listed = await client.get("/history")
 
-    assert '<th scope="col" class="num">Target</th>' in listed.text
-    assert "1%" in listed.text
+    assert '<th scope="col" class="num">Risk</th>' in listed.text
+    assert "0.25%" in listed.text
 
 
 async def test_a_missing_run_renders_a_page_not_a_json_body(client: AsyncClient) -> None:

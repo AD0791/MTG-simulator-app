@@ -97,9 +97,8 @@ async def test_a_stored_run_logs_its_wall(client: AsyncClient) -> None:
         await client.post("/api/v1/simulations", json=REFERENCE_BODY)
 
     stored = _one(captured, "simulation.stored")
-    # The JSON body names no strategy, so the schema default stands. At this
-    # body's $0 target it produces the same ladder breakeven would.
-    assert stored["strategy"] == "adder_profit"
+    # The JSON body names no strategy, so the schema default stands.
+    assert stored["strategy"] == "adder_breakeven"
     assert stored["capital"] == 1000.0
     assert stored["wall_hit"] is True
     assert stored["wall_required_stake"] == 910
@@ -136,14 +135,14 @@ async def test_the_form_records_a_domain_rejection_the_error_seam_never_sees(
     """The page catches the domain's ValueError to re-render the field, so
     `plan.rejected` cannot fire. Without `form.rejected` this would go
     unrecorded entirely."""
-    form = {**REFERENCE_FORM, "entry_1a": "0"}
+    form = {**REFERENCE_FORM, "risk_percent": "0"}
 
     with capture() as captured:
         await client.post("/simulator", data=form)
 
     rejected = _one(captured, "form.rejected")
     assert rejected["stage"] == "plan"
-    assert rejected["fields"] == ["entry_1a"]
+    assert rejected["fields"] == ["risk_percent"]
     assert not _events(captured, "plan.rejected")
 
 

@@ -3,23 +3,20 @@ staking_simulator.py
 
 Order-sizing simulator for binary-option-style trading (Pocket Option OTC).
 
-You specify the first entry or entries by hand: either one opener
-(entry_1a, labelled "1") or two (entry_1a and entry_1b, labelled "1a" and
-"1b") on candle 1 -- entry_1b=None means one opener. From candle 2 onward,
-the stake is computed automatically by one of three named strategies --
-adder_breakeven, adder_profit, or double -- continuing until the required
-stake exceeds the remaining balance -- the martingale wall.
+The opening entry is a fixed share of capital: risk_entry(capital,
+risk_percent) is capital * risk_percent / 100, rounded to the cent, and
+nothing else. A plan opens with one entry (entry_1a, labelled "1") or two
+(entry_1a and entry_1b, labelled "1a" and "1b") on candle 1 -- entry_1b=None
+means one opener. From candle 2 onward, the stake is computed automatically by
+one of two named strategies -- adder_breakeven or double -- continuing until
+the required stake exceeds the remaining balance -- the martingale wall.
 
   adder_breakeven  stake = ceil(cumulative_loss / payout_ratio)
-  adder_profit     stake = ceil((cumulative_loss + target_profit) / payout_ratio)
   double           stake = 2 * previous stake
 
 double is the textbook martingale: each candle doubles the one before it. On
 candle 2 the "previous stake" is everything placed on candle 1 -- both openers
 when there are two.
-
-adder_profit is the default -- it is what every stored run before the
-"double" method existed was computed with.
 
 StakingTable.build(config) is the entry point: pass a StakingConfig, get
 back a fully populated StakingTable. Everything is a dataclass DTO, so the
@@ -32,32 +29,26 @@ the account.
 """
 
 from dataclasses import dataclass, field, asdict
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Callable, Dict, Iterator, List, Optional
 import json
 import math
 
 
 def _adder_breakeven(cumulative_loss: float, last_stake: float,
-                     target_profit: float, payout_ratio: float) -> float:
+                     payout_ratio: float) -> float:
     return math.ceil(cumulative_loss / payout_ratio)
 
 
-def _adder_profit(cumulative_loss: float, last_stake: float,
-                  target_profit: float, payout_ratio: float) -> float:
-    return math.ceil((cumulative_loss + target_profit) / payout_ratio)
-
-
 def _double(cumulative_loss: float, last_stake: float,
-            target_profit: float, payout_ratio: float) -> float:
+            payout_ratio: float) -> float:
     return 2 * last_stake
 
 
-# A strategy is a callable, selected by name -- not a class hierarchy. Three
-# values don't fit a flag, and a fourth is plausible, so the name is what's
-# stored and persisted.
-STRATEGIES: Dict[str, Callable[[float, float, float, float], float]] = {
+# A strategy is a callable, selected by name -- not a class hierarchy. The
+# name is what's stored and persisted, and a third is plausible.
+STRATEGIES: Dict[str, Callable[[float, float, float], float]] = {
     "adder_breakeven": _adder_breakeven,
-    "adder_profit": _adder_profit,
     "double": _double,
 }
 
@@ -77,12 +68,33 @@ class InvalidStakingConfig(ValueError):
 def check_payout_ratio(payout_ratio: float) -> None:
     """The one payout rule: a ratio in (0, 1].
 
-    A function of its own so that anything dividing by a payout without
-    building a whole plan -- sizing the openers to a target -- refuses an
-    impossible one by this rule rather than a second copy of it.
+    A function of its own so that anything reading a payout without building
+    a whole plan refuses an impossible one by this rule rather than a second
+    copy of it.
     """
     if not (0 < payout_ratio <= 1):
         raise InvalidStakingConfig("payout_ratio", "payout_ratio must be between 0 and 1")
+
+
+def risk_entry(capital: float, risk_percent: float) -> float:
+    """The opening entry: risk_percent of capital, rounded half up to the cent.
+
+    Nothing else goes into it -- no payout, no target. With two openers, each
+    one is this amount. Decimal rather than round(), so 5.005 is 5.01 rather
+    than whichever side of it the float happens to fall.
+    """
+    if capital <= 0:
+        raise InvalidStakingConfig("capital", "capital must be positive")
+    if risk_percent <= 0:
+        raise InvalidStakingConfig("risk_percent", "risk_percent must be positive")
+    entry = (Decimal(str(capital)) * Decimal(str(risk_percent)) / 100).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+    if entry <= 0:
+        raise InvalidStakingConfig(
+            "risk_percent", "risk_percent must give an entry of at least 0.01"
+        )
+    return float(entry)
 
 
 @dataclass
@@ -90,10 +102,9 @@ class StakingConfig:
     capital: float = 1000.0
     entry_1a: float = 5.0
     entry_1b: Optional[float] = 5.0
-    payout_ratio: float = 0.92       # 0.92 = 92% payout
-    target_profit: float = 0.0       # profit demanded on top of recovery (adder_profit only)
-    max_entries: int = 50            # safety cap
-    strategy: str = "adder_profit"   # one of STRATEGIES
+    payout_ratio: float = 0.92          # 0.92 = 92% payout
+    max_entries: int = 50               # safety cap
+    strategy: str = "adder_breakeven"   # one of STRATEGIES
 
     def __post_init__(self):
         # One refusal per field, first failure wins. entry_1b is checked only
@@ -105,8 +116,6 @@ class StakingConfig:
         if self.entry_1b is not None and self.entry_1b <= 0:
             raise InvalidStakingConfig("entry_1b", "entry_1b must be positive")
         check_payout_ratio(self.payout_ratio)
-        if self.target_profit < 0:
-            raise InvalidStakingConfig("target_profit", "target_profit cannot be negative")
         if self.strategy not in STRATEGIES:
             raise InvalidStakingConfig(
                 "strategy", f"strategy must be one of {', '.join(STRATEGIES)}"
@@ -134,7 +143,7 @@ def stakes(config: StakingConfig) -> Iterator[tuple[str, float]]:
     # The previous candle's stake: on candle 2 that is every opener together.
     last_stake = cumulative_loss
     for candle in range(2, config.max_entries - len(openers) + 2):
-        stake = stake_for(cumulative_loss, last_stake, config.target_profit, config.payout_ratio)
+        stake = stake_for(cumulative_loss, last_stake, config.payout_ratio)
         yield str(candle), stake
         cumulative_loss += stake
         last_stake = stake
@@ -226,7 +235,8 @@ class StakingTable:
 
 
 if __name__ == "__main__":
-    config = StakingConfig(capital=1000.0, entry_1a=5.0, entry_1b=5.0)
+    entry = risk_entry(1000.0, 0.5)
+    config = StakingConfig(capital=1000.0, entry_1a=entry, entry_1b=entry)
     table = StakingTable.build(config)
     table.print_table()
 

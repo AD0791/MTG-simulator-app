@@ -25,26 +25,26 @@ seeing exactly how and where such a strategy fails.
 
 ## The staking plan being modelled
 
-1. **One or two opening entries** — placed by hand on the first candle. Two is the default
-   (**1a** and **1b**); a plan may instead open with a single entry, labelled **1**. Whichever is
-   chosen, those are the only numbers supplied directly — everything after them is derived.
+1. **One or two opening entries** on the first candle, each sized from a **risk percentage** of
+   capital: `entry = capital × risk ÷ 100`, rounded to the cent and nothing else — 0.25% of
+   $3,534.68 is $8.84. Two is the default (**1a** and **1b**, each that amount); a plan may
+   instead open with a single entry, labelled **1**. Everything after the openers is derived.
    Halving a two-opener plan to one buys no extra depth: every strategy still places the same
    number of entries before the wall, just with less cushion left.
-2. **From entry 2 on**, the stake is computed by one of three named strategies:
+2. **From entry 2 on**, the stake is computed by one of two named strategies:
 
    | Strategy | Rule | What it is reaching for |
    |---|---|---|
    | `adder_breakeven` | `⌈cumulative_loss ÷ payout_ratio⌉` | the smallest whole-dollar stake that, winning, gets back to even |
-   | `adder_profit` | `⌈(cumulative_loss + target_profit) ÷ payout_ratio⌉` | the same, plus a fixed profit on top — identical to breakeven when the target is 0 |
-   | `double` | `2 × previous stake` | the textbook martingale — each candle doubles the last, and candle 2 doubles both openers together; the only one that reads neither the payout nor the target |
+   | `double` | `2 × previous stake` | the textbook martingale — each candle doubles the last, and candle 2 doubles both openers together; it never reads the payout |
 
 The simulation stops the instant the next required stake exceeds the remaining balance.
 
-Reference case — $1,000 of capital, $5 + $5 on the first candle, a 92% payout and no target profit:
+Reference case — $1,000 of capital at 0.5% risk, so $5 + $5 on the first candle, and a 92% payout:
 
 | Strategy | Entries placed | Next stake needed | Balance left |
 |---|---|---|---|
-| `adder_breakeven`, `adder_profit` | 8 | **$910** | **$163** |
+| `adder_breakeven` | 8 | **$910** | **$163** |
 | `double` | 7 | **$640** | **$370** |
 
 Doubling reaches the wall one entry sooner — and stops paying for itself before it gets there. A
@@ -58,7 +58,7 @@ Neither strategy escapes the wall.
 | Path | What it does |
 |---|---|
 | `/` | The theory — how the payout mechanic works, why recovery staking hits a wall, and a FAQ for reading the results table |
-| `/simulator` | Capital, payout %, a target profit (as % of capital), a choice of one or two opening entries, and a choice of strategies to compare — only the entry cap sits under **Advanced** |
+| `/simulator` | Capital, payout %, the risk per opening entry (as % of capital), a choice of one or two opening entries, and a choice of strategies to compare — only the entry cap sits under **Advanced** |
 | `/results/{id}` | One strategy's ladder, entry by entry, to the wall — and below it, how much to keep in the account for each number of losses |
 | `/results/group/{uuid}` | Several strategies compared side by side, one table each, from a single submission |
 | `/history` | Past runs, revisitable and clearable |
@@ -71,14 +71,9 @@ the arithmetic.
 
 ```mermaid
 flowchart TD
-    FORM["GET /simulator<br/>capital · payout %<br/>target % · openers 1a + 1b<br/>one to three strategies"]
-    FORM -->|POST /simulator| ACT{which button?}
-
-    ACT -->|Suggest| SUG["size the openers<br/>to the target"]
-    SUG -.->|nothing run, nothing stored| FORM
-
-    ACT -->|Run| SHAPE["SimulationForm<br/>shape only"]
-    SHAPE -->|one config per checked strategy| DOM["domain<br/>StakingConfig · StakingTable.build"]
+    FORM["GET /simulator<br/>capital · payout %<br/>risk % · one or two openers<br/>one or two strategies"]
+    FORM -->|POST /simulator| SHAPE["SimulationForm<br/>shape only"]
+    SHAPE -->|one config per checked strategy| DOM["domain<br/>risk_entry · StakingConfig · StakingTable.build"]
     DOM --> DB[("simulations<br/>+ simulation_entries")]
 
     SHAPE -.->|malformed| REJECT
@@ -87,7 +82,7 @@ flowchart TD
 
     DB --> SEE{how many<br/>strategies?}
     SEE -->|one| ONE["303 → /results/{id}"]
-    SEE -->|two or three| MANY["303 → /results/group/{uuid}"]
+    SEE -->|two| MANY["303 → /results/group/{uuid}"]
     ONE --> HIST["/history"]
     MANY --> HIST
 ```
@@ -97,11 +92,11 @@ Four things in that path are deliberate:
 - **The domain does the arithmetic and nothing else.** `StakingConfig` validates itself, and
   `StakingTable.build` walks the ladder row by row — each stake is `ceil`'d off the previous one,
   which is exactly why it cannot be vectorised.
-- **Percentages stop at the edge.** The form takes a payout percentage and a target profit as a
-  percentage of capital; both are converted before the domain sees them, so the simulator only ever
-  handles a ratio and an absolute amount.
+- **Percentages stop at the edge.** The form takes a payout percentage and a risk percentage of
+  capital; both are converted before the ladder is built (`services/bands.config_for`, by the
+  domain's own `risk_entry`), so the simulator only ever handles a ratio and absolute openers.
 - **Every config is built before any row is written**, so a plan rejected part-way leaves nothing
-  half-saved. Two or three strategies get a shared `run_group`; a single one is stored exactly as a
+  half-saved. Two strategies get a shared `run_group`; a single one is stored exactly as a
   lone run always was.
 - **Submitting redirects.** `303` means the result page is reached by a fresh `GET`, so reloading it
   re-reads a stored run instead of re-submitting the form. Clearing anything from `/history` sets
@@ -120,24 +115,25 @@ declared once, in `api/v1/__init__.py`, and never inside a route.
 | Endpoint | Body in | Out |
 |---|---|---|
 | `GET /api/v1/health` | — | `200` · `{status, app}` |
-| `POST /api/v1/simulations` | `SimulationCreate` — one strategy, absolute dollars | `201` · `SimulationRead` (inputs, verdict, banded ladder, opener badge) |
+| `POST /api/v1/simulations` | `SimulationCreate` — one strategy, openers sized by `risk_percent` | `201` · `SimulationRead` (inputs, verdict, banded ladder, opener badge) |
 | `GET /api/v1/simulations` | — | `200` · `SimulationSummary[]`, newest first |
 | `DELETE /api/v1/simulations` | — | `204` · every live run soft-deleted |
 | `GET /api/v1/simulations/{id}` | — | `200` · `SimulationRead`, or `404` |
 | `DELETE /api/v1/simulations/{id}` | — | `204` · soft-deleted, or `404` |
-| `POST /api/v1/run-groups` | `RunGroupCreate` — one or more strategies, target as % of capital | `201` · `RunGroupRead`; `run_group` is null for one strategy |
+| `POST /api/v1/run-groups` | `RunGroupCreate` — one or more strategies, openers sized by `risk_percent` | `201` · `RunGroupRead`; `run_group` is null for one strategy |
 | `GET /api/v1/run-groups/{run_group}` | — | `200` · `RunGroupRead` in submission order, or `404` |
 | `DELETE /api/v1/run-groups/{run_group}` | — | `204` · every run in it soft-deleted, or `404` |
 | `GET /api/v1/ladders?…` | `SimulationCreate`'s fields, as query parameters | `200` · `LadderRead` — simulated, **not stored** |
-| `GET /api/v1/openers/badge?…` | `capital`, `entry_1a`, `entry_1b` (omit for one opener), `payout_ratio`, `target_profit_percent` | `200` · `OpenerBadgeRead` |
-| `GET /api/v1/openers/suggestion?…` | `capital`, `payout_ratio`, `target_profit_percent`, `opener_count` | `200` · `{derivation}`, null without a target |
+| `GET /api/v1/openers/badge?…` | `capital`, `risk_percent`, `opener_count` (default 2), `payout_ratio` | `200` · `OpenerBadgeRead` |
 | `GET /api/v1/strategies` | — | `200` · `[{name, label}]` in form order |
 
 Every field of `SimulationCreate` is optional and defaults to `StakingConfig`'s own, so a body need
-only carry what it changes. It takes a **payout ratio and an absolute target profit** and runs
-**one strategy**, so `run_group` is null on a run made this way. `POST /run-groups` is the JSON form
-of a simulator submission — one plan, one or more strategies, the target as a percentage of capital
-— and the page reaches the service through the same conversion (`SimulationForm.to_plan()`).
+only carry what it changes. It takes a **payout ratio, a `risk_percent` and an `opener_count`**
+(defaults 0.5 and 2 — the reference case) and runs **one strategy**, so `run_group` is null on a run
+made this way. No body names an opener directly: `entry_1a` and `entry_1b` appear only in responses,
+as what the risk resolved to. `POST /run-groups` is the JSON form of a simulator submission — one
+plan, one or more strategies — and the page reaches the service through the same conversion
+(`SimulationForm.to_plan()`).
 
 Responses are view models, not rows. Every ladder entry carries its exposure `share` and `band`, its
 `drawdown`, `drawdown_band` and `recovery_gain`, and its `win_net` and `short_recovery`; a run
@@ -317,7 +313,7 @@ id attached. What gets logged, and what deliberately does not:
 |---|---|
 | middleware | every request: method, path, status, duration, id |
 | `services/` | state changes — runs stored, runs cleared |
-| `web/pages.py` | form rejections (field **names**, never the reader's values) and opener suggestions |
+| `web/pages.py` | form rejections (field **names**, never the reader's values) |
 | `main.py` | the error seam — rejected plans and HTTP errors |
 | `api/v1/routers/` | nothing; the middleware and the service already cover both ends |
 | `domain/` | **nothing, ever** — it imports no third-party library and must stay that way |

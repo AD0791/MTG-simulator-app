@@ -11,7 +11,7 @@ Read paths only — nothing here writes, so nothing here logs.
 from collections.abc import Sequence
 from dataclasses import asdict
 
-from ..domain.staking_simulator import STRATEGIES, StakingConfig, StakingTable
+from ..domain.staking_simulator import STRATEGIES, StakingConfig, StakingTable, risk_entry
 from ..models import Simulation
 from ..schemas import (
     EntryRead,
@@ -19,9 +19,6 @@ from ..schemas import (
     LadderRead,
     OpenerBadgeQuery,
     OpenerBadgeRead,
-    OpenerDerivationRead,
-    OpenerSuggestionQuery,
-    OpenerSuggestionRead,
     RunGroupRead,
     SimulationCreate,
     SimulationRead,
@@ -52,7 +49,6 @@ def simulation_read(simulation: Simulation) -> SimulationRead:
             simulation.entry_1a,
             simulation.entry_1b,
             simulation.payout_ratio,
-            simulation.target_profit,
         ),
         entries=[
             EntryRead(position=entry.position, **asdict(row))
@@ -72,11 +68,13 @@ def run_group_read(simulations: Sequence[Simulation]) -> RunGroupRead:
 
 def ladder_read(plan: SimulationCreate) -> LadderRead:
     """Simulate without storing. An impossible plan raises, same seam as a stored one."""
-    config = StakingConfig(**plan.model_dump())
+    config = bands.config_for(plan)
     table = StakingTable.build(config)
     rows, wall = bands.table_ladder(table)
     return LadderRead(
         **plan.model_dump(),
+        entry_1a=config.entry_1a,
+        entry_1b=config.entry_1b,
         wall_hit=table.wall_hit,
         wall_required_stake=table.wall_required_stake,
         wall_balance_available=table.wall_balance_available,
@@ -87,7 +85,6 @@ def ladder_read(plan: SimulationCreate) -> LadderRead:
             config.entry_1a,
             config.entry_1b,
             config.payout_ratio,
-            config.target_profit,
         ),
         entries=[
             EntryRead(position=position, **asdict(row))
@@ -98,17 +95,9 @@ def ladder_read(plan: SimulationCreate) -> LadderRead:
 
 
 def opener_badge_read(query: OpenerBadgeQuery) -> OpenerBadgeRead:
+    entry = risk_entry(query.capital, query.risk_percent)
     return _badge(
-        query.capital, query.entry_1a, query.entry_1b, query.payout_ratio, query.target_profit
-    )
-
-
-def opener_suggestion_read(query: OpenerSuggestionQuery) -> OpenerSuggestionRead:
-    derivation = bands.opener_derivation(
-        query.target_profit, query.payout_ratio, query.opener_count
-    )
-    return OpenerSuggestionRead(
-        derivation=OpenerDerivationRead.model_validate(derivation) if derivation else None
+        query.capital, entry, entry if query.opener_count == 2 else None, query.payout_ratio
     )
 
 
@@ -121,8 +110,7 @@ def _badge(
     entry_1a: float,
     entry_1b: float | None,
     payout_ratio: float,
-    target_profit: float,
 ) -> OpenerBadgeRead:
     return OpenerBadgeRead.model_validate(
-        bands.opener_badge(capital, entry_1a, entry_1b, payout_ratio, target_profit)
+        bands.opener_badge(capital, entry_1a, entry_1b, payout_ratio)
     )

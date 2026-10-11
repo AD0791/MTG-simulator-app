@@ -13,20 +13,20 @@ from pydantic import ValidationError
 from ..domain.staking_simulator import InvalidStakingConfig
 
 # Where the form names a field differently from the domain, because it asks in
-# different units (a percentage) or collects several values (checkboxes).
+# different units (a percentage), collects several values (checkboxes), or sizes
+# the field from another input (the openers come from the risk).
 _FORM_FIELD = {
     "payout_ratio": "payout_percent",
-    "target_profit": "target_profit_percent",
+    "entry_1a": "risk_percent",
+    "entry_1b": "risk_percent",
     "strategy": "strategies",
 }
 
 # The domain's refusal, restated in the form's own terms. The rule is not restated.
 _MESSAGE = {
     "capital": "Capital must be positive.",
-    "entry_1a": "Enter an amount above zero.",
-    "entry_1b": "Enter an amount above zero.",
+    "risk_percent": "Risk must be above 0% and size an entry of at least $0.01.",
     "payout_percent": "Payout must be above 0% and no more than 100%.",
-    "target_profit_percent": "Target profit can't be negative.",
     # Reachable only by a hand-crafted request — the checkboxes only ever
     # post the names the template itself renders.
     "strategies": "Choose a valid strategy.",
@@ -58,8 +58,7 @@ def from_domain(exc: ValueError) -> dict[str, str]:
     """Field messages for a plan the simulator refused to run.
 
     The domain names the field it refused, so nothing here reads the message
-    text to find it. A single-opener plan reaches the domain with `entry_1b` as
-    None, which is never checked — so an error can't point at the hidden field.
+    text to find it.
     """
     if not isinstance(exc, InvalidStakingConfig):
         return {"__form__": str(exc)}

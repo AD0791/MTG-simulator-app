@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <style>
+      @font-face { font-family: "Geist"; src: url("../fonts/geist-latin-wght-normal.woff2") format("woff2"); font-weight: 100 900; }
+      @font-face { font-family: "Geist Mono"; src: url("../fonts/geist-mono-latin-wght-normal.woff2") format("woff2"); font-weight: 100 900; }
+      .word { font: 650 84px "Geist", sans-serif; letter-spacing: -2px; fill: #e6e9ef; }
+      .line { font: 400 38px "Geist", sans-serif; fill: #8b95a7; }
+      .fig  { font: 500 30px "Geist Mono", monospace; fill: #f85149; }
+    </style>
+  </defs>
+  <rect width="1200" height="630" fill="#0a0c10"/>
+  <g transform="translate(96 128) scale(7)">
+    <path fill="#4d9fff" d="M2 25h4v3H2zM7 22h4v6H7zM12 17h4v11h-4zM17 9h4v19h-4z"/>
+    <path fill="#e6e9ef" d="M24 3h6v25h-6z"/>
+  </g>
+  <text class="word" x="96" y="420">Martingale Wall</text>
+  <text class="line" x="96" y="482">How many losses a staking plan can absorb before the next</text>
+  <text class="line" x="96" y="530">stake exceeds the balance.</text>
+  <text class="fig" x="96" y="88">needs $910 · only $163 available</text>
+</svg>

@@ -1,0 +1,12 @@
+{
+  "name": "Martingale Wall",
+  "short_name": "Martingale Wall",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "start_url": "/",
+  "display": "browser",
+  "theme_color": "#12151c",
+  "background_color": "#0a0c10"
+}

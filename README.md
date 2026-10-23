@@ -58,10 +58,39 @@ Neither strategy escapes the wall.
 | Path | What it does |
 |---|---|
 | `/` | The theory — how the payout mechanic works, why recovery staking hits a wall, and a FAQ for reading the results table |
-| `/simulator` | Capital, payout %, the risk per opening entry (as % of capital), a choice of one or two opening entries, and a choice of strategies to compare — only the entry cap sits under **Advanced** |
+| `/simulator` | Capital, payout %, the risk per opening entry (as % of capital), a choice of one or two opening entries, and a choice of strategies to compare — only the entry cap sits under **Advanced**. Opens with your last submission, or with a stored run's inputs from `?from=<id>` / `?group=<uuid>` |
+| `/planner` | The risk planner: the daily growth a capital target requires over a date range, and the wins that takes at up to four risk levels. A GET form, so the address holds the plan |
 | `/results/{id}` | One strategy's ladder, entry by entry, to the wall — and below it, how much to keep in the account for each number of losses |
 | `/results/group/{uuid}` | Several strategies compared side by side, one table each, from a single submission |
 | `/history` | Past runs, revisitable and clearable |
+| `POST /theme` | Sets the `theme` cookie (`light`, `dark`, or `system` to clear it) and returns `303` to the page it came from |
+| `/robots.txt`, `/sitemap.xml` | Crawler rules and the three indexable pages |
+
+## The risk planner
+
+`/planner` answers a different question from the simulator: not where a losing streak breaks the
+account, but what a capital target **requires**. Every trade (or session) risks the same share of
+the balance as it stands, so wins and losses multiply and their order does not matter — after `N`
+units with `W` wins the balance is `capital × (1 + w)^W × (1 − r)^(N − W)`. The answer is therefore
+exact, with no win rate assumed:
+
+```
+daily  = (target ÷ capital)^(1 ÷ D) − 1                                  D trading days
+wins   = ⌈(ln(target ÷ capital) − N × ln(1 − r)) ÷ (ln(1 + w) − ln(1 − r))⌉
+w      = r × payout                                single trades
+w      = r × (2 × payout − 1) ÷ 3  to  r × payout ÷ 3   sessions: initial r ÷ 3, recharge 2r ÷ 3
+```
+
+The reference case: $1,600 to $2,000 from 23 October to 25 November 2026, Monday to Friday, four
+sessions a day at a 92% payout. That is 24 trading days and 96 sessions, so the account must grow
+**0.93% a day** ($14.95 on day one). At 1% risk per session it needs 91–93 wins of 96 against a
+break-even of 78.23%; at 0.5% it is **out of reach** — winning all 96 ends at $1,829.99. The page
+says so plainly. It states what a target requires; it never estimates whether anyone wins that
+often.
+
+The domain is `domain/risk_plan.py` (stdlib only, like the simulator); `services/risk_planner.py`
+turns a request into a plan and a plan into verdict text, for the page and
+`GET /api/v1/risk-plans` alike. Nothing is stored.
 
 ## How a run gets made
 
@@ -126,6 +155,7 @@ declared once, in `api/v1/__init__.py`, and never inside a route.
 | `GET /api/v1/ladders?…` | `SimulationCreate`'s fields, as query parameters | `200` · `LadderRead` — simulated, **not stored** |
 | `GET /api/v1/openers/badge?…` | `capital`, `risk_percent`, `opener_count` (default 2), `payout_ratio` | `200` · `OpenerBadgeRead` |
 | `GET /api/v1/strategies` | — | `200` · `[{name, label}]` in form order |
+| `GET /api/v1/risk-plans?…` | `RiskPlanQuery` as query parameters: `capital`, `target_capital`, optional `start_date`/`end_date` (default today and 30 days on), `weekdays` (repeated, Mon=0), `per_day`, `payout_percent`, `style` (`trade`/`session`), `risk_percents` (repeated, 1–4) | `200` · `RiskPlanRead` — computed, **not stored** |
 
 Every field of `SimulationCreate` is optional and defaults to `StakingConfig`'s own, so a body need
 only carry what it changes. It takes a **payout ratio, a `risk_percent` and an `opener_count`**
@@ -248,6 +278,20 @@ docker compose build api
 Dependencies are always added on the host with `uv add`, never inside a container — a
 container-local install dies with the container and never reaches the lockfile.
 
+## Themes and search
+
+Every page renders in a light and a dark theme. By default it follows the system preference; the
+three buttons in the nav post to `/theme`, which sets a `theme` cookie and redirects back, so the
+switch works with no JavaScript (the site ships none). Colours are `light-dark()` tokens in
+`static/css/app.css`; radii, shadows and easings come from [Open Props](https://open-props.style)
+1.7.23 and the type is Geist and Geist Mono, all vendored under `static/` with their licences —
+nothing loads from a CDN.
+
+Each page has its own title, description, canonical link and Open Graph card
+(`static/img/og.png`, rendered from `og.svg` beside it). Results, history and error pages are
+`noindex`. Absolute URLs use **`SITE_URL`** when it is set, and the request's own address
+otherwise — set it in production so canonical links and the sitemap name the public origin.
+
 ## Deploying to FastAPI Cloud
 
 FastAPI Cloud builds from the GitHub repository and starts the app with `fastapi run`. Three
@@ -261,7 +305,8 @@ things make that work:
   `db.upgrade_to_head()` before the app serves anything. On a database already at head, it does
   nothing.
 
-Set `LOG_JSON=true` in the app's environment variables. Leave `DATABASE_URL` unset to use SQLite.
+Set `LOG_JSON=true` and `SITE_URL=https://mtg-simulator-app.fastapicloud.dev` in the app's
+environment variables. Leave `DATABASE_URL` unset to use SQLite.
 That database lives inside the container, so **every redeploy or restart starts with an empty
 history**, and each replica keeps its own. Set a PostgreSQL `DATABASE_URL` when history has to
 survive a redeploy.
@@ -313,7 +358,7 @@ id attached. What gets logged, and what deliberately does not:
 |---|---|
 | middleware | every request: method, path, status, duration, id |
 | `services/` | state changes — runs stored, runs cleared |
-| `web/pages.py` | form rejections (field **names**, never the reader's values) |
+| `web/pages.py`, `web/planner.py` | form rejections (field **names**, never the reader's values or a cookie's contents) |
 | `main.py` | the error seam — rejected plans and HTTP errors |
 | `api/v1/routers/` | nothing; the middleware and the service already cover both ends |
 | `domain/` | **nothing, ever** — it imports no third-party library and must stay that way |
@@ -331,21 +376,21 @@ the three engines.
 
 ```
 src/app/
-  domain/      the simulator — pure Python, no dependencies, no framework
+  domain/      the simulator and the risk planner — pure Python, no dependencies
   models/      SQLAlchemy ORM
   schemas/     Pydantic request/response contracts
   services/    use cases
   api/v1/      JSON routers
-  web/         HTML page routers
+  web/         HTML page routers, the theme switch, robots and sitemap
   templates/   Jinja2
-  static/      hand-authored CSS
+  static/      hand-authored CSS; vendored Open Props tokens and Geist fonts
 ```
 
 `domain/` is deliberately free of FastAPI, Pydantic, and SQLAlchemy. It runs under bare `python3`
 with nothing installed, which keeps the simulation independently testable and reusable:
 
 ```bash
-cd src && python3 -c "import app.domain.staking_simulator"
+cd src && python3 -c "import app.domain.risk_plan, app.domain.staking_simulator"
 ```
 
 ## Documentation

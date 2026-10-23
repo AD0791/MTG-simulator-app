@@ -6,9 +6,12 @@ are things people bookmark.
 """
 
 import uuid
+from collections.abc import Sequence
+from decimal import Decimal
 from typing import Annotated, Any
+from urllib.parse import parse_qs, urlencode
 
-from fastapi import APIRouter, Form, HTTPException, Request, status
+from fastapi import APIRouter, Form, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse, Response
 from pydantic import ValidationError
 
@@ -18,7 +21,7 @@ from ..log import logger
 from ..models import Simulation
 from ..schemas import RawSimulationForm, SimulationForm
 from ..services import bands, simulation_service
-from ..web import form_errors
+from ..web import form_errors, form_state
 from ..web.templates import templates
 
 router = APIRouter(include_in_schema=False)
@@ -79,8 +82,78 @@ def index(request: Request) -> Response:
 
 
 @router.get("/simulator", summary="The staking plan form")
-def simulator(request: Request) -> Response:
-    return _form(request, DEFAULT_FORM.model_dump(), {})
+def simulator(
+    request: Request,
+    session: SessionDep,
+    run_id: Annotated[str | None, Query(alias="from")] = None,
+    group: str | None = None,
+) -> Response:
+    return _form(request, _prefill(request, session, run_id, group), {})
+
+
+def _prefill(
+    request: Request, session: SessionDep, run_id: str | None, group: str | None
+) -> dict[str, Any]:
+    """The values the form opens with, from the first source that has them: a
+    stored run (`?from=`), a stored comparison (`?group=`), the last successful
+    submission's cookie, then the defaults. A source that is missing, cleared,
+    recorded before risk sizing existed, or unreadable falls through — never
+    an error page."""
+    for values in (
+        _from_runs(_one_run(session, run_id)),
+        _from_runs(_group_runs(session, group)),
+        _from_cookie(request.cookies.get(form_state.SIMULATOR_COOKIE)),
+    ):
+        if values is not None:
+            return values
+    return DEFAULT_FORM.model_dump()
+
+
+def _one_run(session: SessionDep, run_id: str | None) -> list[Simulation]:
+    if not run_id or not run_id.isdigit():
+        return []
+    simulation = simulation_service.get_simulation(session, int(run_id))
+    return [simulation] if simulation is not None else []
+
+
+def _group_runs(session: SessionDep, group: str | None) -> Sequence[Simulation]:
+    try:
+        run_group = uuid.UUID(group) if group else None
+    except ValueError:
+        return []
+    return simulation_service.get_group(session, run_group) if run_group else []
+
+
+def _from_runs(simulations: Sequence[Simulation]) -> dict[str, Any] | None:
+    """The form a stored run was submitted with; every strategy in a group is checked."""
+    first = simulations[0] if simulations else None
+    if first is None or first.risk_percent is None:
+        return None
+    return RawSimulationForm(
+        capital=_plain(first.capital),
+        payout_percent=_plain(first.payout_ratio * 100),
+        risk_percent=_plain(first.risk_percent),
+        opener_count="1" if first.entry_1b is None else "2",
+        max_entries=str(first.max_entries),
+        strategies=[simulation.strategy for simulation in simulations],
+    ).model_dump()
+
+
+def _from_cookie(saved: str | None) -> dict[str, Any] | None:
+    if not saved:
+        return None
+    parsed = parse_qs(saved, keep_blank_values=True)
+    data: dict[str, Any] = {key: values[0] for key, values in parsed.items()}
+    data["strategies"] = parsed.get("strategies", [])
+    try:
+        return RawSimulationForm.model_validate(data).model_dump()
+    except ValidationError:
+        return None
+
+
+def _plain(number: float) -> str:
+    """A stored float as a reader would type it: 1234.0 → "1234", a 92% payout → "92"."""
+    return format(Decimal(repr(round(number, 6))).normalize(), "f")
 
 
 @router.post("/simulator", summary="Run one or more strategies")
@@ -119,8 +192,18 @@ def submit_simulator(
     # One strategy behaves exactly as a single run always has. More than one
     # redirects to the comparison view instead of the individual result.
     if len(simulations) == 1:
-        return _see_other(f"/results/{simulations[0].id}")
-    return _see_other(f"/results/group/{simulations[0].run_group}")
+        response = _see_other(f"/results/{simulations[0].id}")
+    else:
+        response = _see_other(f"/results/group/{simulations[0].run_group}")
+    # So a bare /simulator opens with these values next time.
+    form_state.remember(
+        response,
+        request,
+        form_state.SIMULATOR_COOKIE,
+        urlencode(values, doseq=True),
+        form_state.FORM_MAX_AGE,
+    )
+    return response
 
 
 def _form(

@@ -1,55 +1,107 @@
 /* ---------------------------------------------------------------------------
-   Martingale Wall Simulator — hand-authored, no framework, no CDN.
+   Martingale Wall — hand-authored, no framework, no CDN.
 
-   Every colour, space, and type decision resolves to a custom property below.
-   A hard-coded value anywhere else in this file is a bug.
+   Tokens from Open Props 1.7.23 (MIT, vendored 2026-10-23 under
+   css/vendor/open-props/): radii (borders.min.css), shadows (shadows.min.css)
+   and easings (easings.min.css). A token library, not a component framework —
+   nothing below comes from it except custom properties.
+   Fonts: Geist and Geist Mono 1.x variable, latin subset, from
+   @fontsource-variable/geist{,-mono}@5.3.0 (SIL OFL 1.1, fonts/OFL.txt). The
+   @font-face rules live in base.html so their URLs carry `?v=`.
+
+   Every colour resolves to a custom property on :root. A hard-coded colour
+   anywhere else in this file is a bug.
+
+   Two themes. Each colour token is `light-dark(<light>, <dark>)`, which follows
+   `color-scheme`: the OS preference by default, or `data-theme` on <html> when
+   the reader picked one (POST /theme, a cookie, no script). Non-colour tokens
+   that differ by theme cannot use light-dark(), so they are switched in the two
+   blocks after :root — once for the OS preference, once for the override.
    --------------------------------------------------------------------------- */
 
 :root {
-  /* surfaces, darkest to lightest */
-  --bg:        #0a0c10;
-  --surface:   #12151c;
-  --raised:    #1a1f29;
-  --border:    #262d3a;
+  color-scheme: light dark;
+
+  /* surfaces — page, card, raised (headers, affixes), hairline */
+  --bg:        light-dark(#f6f7f9, #0a0c10);
+  --surface:   light-dark(#ffffff, #12151c);
+  --raised:    light-dark(#eef1f5, #1a1f29);
+  --border:    light-dark(#d5dae2, #262d3a);
 
   /* text */
-  --text:      #e6e9ef;
-  --muted:     #8b95a7;
+  --text:      light-dark(#11151c, #e6e9ef);
+  --muted:     light-dark(#556070, #8b95a7);
 
   /* informational accent — links, focus, affordances. Never risk. */
-  --accent:    #4d9fff;
-  --accent-dim:#1c3f6b;
+  --accent:     light-dark(#0b5fd6, #4d9fff);
+  --accent-dim: light-dark(#dce8fb, #1c3f6b);
+  --on-accent:  light-dark(#ffffff, #0a0c10);
 
-  /* the escalation ramp — exposure, on the stake cell */
-  --calm:      #3fb950;
-  --caution:   #d29922;
-  --elevated:  #f0883e;
-  --danger:    #f85149;
+  /* the escalation ramp — exposure, on the stake cell. Dark values are the
+     ones measured in item 7; light values measured 2026-10-23, all ≥ 4.79:1
+     on every surface. */
+  --calm:      light-dark(#17742f, #3fb950);
+  --caution:   light-dark(#8a5a00, #d29922);
+  --elevated:  light-dark(#b4480b, #f0883e);
+  --danger:    light-dark(#c62828, #f85149);
 
   /* the drawdown ramp — a different question, on the balance cell. A
      different hue family on purpose: never let this read as the same signal
-     as the exposure ramp above. Escalates toward a more vivid magenta rather
-     than darkening, so "terminal" stays legible as text on a dark surface. */
-  --drawdown-heavy:    #a371f7;
-  --drawdown-severe:   #c297ff;
-  --drawdown-critical: #e2a8ff;
-  --drawdown-terminal: #ff8dd1;
+     as the exposure ramp above. In dark it escalates toward a more vivid
+     magenta so "terminal" stays legible as text; in light it darkens. */
+  --drawdown-heavy:    light-dark(#7a55c8, #a371f7);
+  --drawdown-severe:   light-dark(#6638b8, #c297ff);
+  --drawdown-critical: light-dark(#4f22a0, #e2a8ff);
+  --drawdown-terminal: light-dark(#9a0e72, #ff8dd1);
 
   /* short recovery — a win that clears most of the streak but still ends
      below starting capital, on the "If won" cell. Teal, the one hue neither
      ramp nor the accent uses, so it reads as its own signal. */
-  --recovery-short: #39c5cf;
+  --recovery-short: light-dark(#0b717b, #39c5cf);
 
-  /* type */
-  --font-prose:  ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-figure: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", monospace;
+  /* tints, kept faint so they never compete with the ramps */
+  --zebra:     light-dark(rgb(17 21 28 / 2.5%), rgb(255 255 255 / 2%));
+  --wall-tint: light-dark(rgb(198 40 40 / 6%), rgb(248 81 73 / 8%));
+
+  /* type — Geist first, the system stacks as fallbacks */
+  --font-prose:  "Geist", ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-figure: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", monospace;
 
   /* spacing — 4px base */
   --s1: .25rem; --s2: .5rem;  --s3: .75rem; --s4: 1rem;
   --s6: 1.5rem; --s8: 2rem;   --s12: 3rem;  --s16: 4rem;
 
-  --radius: 6px;
+  /* radii from Open Props: controls are tighter than cards, so hierarchy
+     shows in the corners rather than everything sharing one radius. */
+  --radius:      var(--radius-2);
+  --radius-card: 10px;
   --measure: 68ch;
+
+  /* elevation: a soft shadow in light, where it reads; none in dark, where a
+     raised surface and a hairline do the job instead. */
+  --card-shadow: var(--shadow-2);
+  --ease: var(--ease-3);
+}
+
+/* The Open Props trap: shadows.min.css switches `--shadow-color` and
+   `--shadow-strength` on `prefers-color-scheme`, which ignores the reader's
+   override. Both blocks below re-declare them for each case it misses. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --card-shadow: none; }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --shadow-color: 220 3% 15%;
+  --shadow-strength: 1%;
+  --inner-shadow-highlight: inset 0 -.5px 0 0 #fff, inset 0 .5px 0 0 rgb(0 0 0 / 6.7%);
+  --card-shadow: var(--shadow-2);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --shadow-color: 220 40% 2%;
+  --shadow-strength: 25%;
+  --inner-shadow-highlight: inset 0 -.5px 0 0 rgb(255 255 255 / 6.7%), inset 0 .5px 0 0 rgb(0 0 0 / 46.7%);
+  --card-shadow: none;
 }
 
 /* --- reset-ish --------------------------------------------------------- */
@@ -64,9 +116,10 @@ body {
   font-size: 1rem;
   line-height: 1.65;
   -webkit-text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
 }
 
-h1, h2, h3 { line-height: 1.25; font-weight: 600; margin: 0; }
+h1, h2, h3 { line-height: 1.2; font-weight: 600; margin: 0; letter-spacing: -.015em; }
 p, ul, ol { margin: 0 0 var(--s4); }
 
 a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -78,7 +131,8 @@ a:hover { text-decoration-thickness: 2px; }
   border-radius: 2px;
 }
 
-/* Colour is never the only signal, and nothing here animates a result. */
+/* Colour is never the only signal, and nothing here animates a result. The
+   only transitions on the site are hover and focus colour. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
@@ -123,11 +177,11 @@ td.num, th.num, .num { text-align: right; }
 
 .page > header { margin-bottom: var(--s8); }
 
-h1 { font-size: 2rem; }
+h1 { font-size: 2rem; letter-spacing: -.025em; }
 .page > header p {
   color: var(--muted);
   max-width: var(--measure);
-  margin-top: var(--s2);
+  margin-top: var(--s3);
 }
 
 section { max-width: var(--measure); }
@@ -142,31 +196,48 @@ section h3 {
   margin-bottom: var(--s2);
 }
 
+/* A heading straight inside the page (the planner's results) gets the same
+   rhythm as one inside a section: room above, so it belongs to what follows. */
+.page > h2 {
+  font-size: 1.35rem;
+  margin: var(--s12) 0 var(--s4);
+}
+
 .lede { font-size: 1.1rem; }
 
-/* --- nav --------------------------------------------------------------- */
+/* --- site header and nav ---------------------------------------------- */
 
+.site-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
 .nav {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--s4);
-  padding: var(--s3) var(--s4);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  column-gap: var(--s4);
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--s2) var(--s4);
 }
 .nav__brand {
   /* 44px is the tap-target floor; as plain inline text this measured 26px. */
   display: inline-flex;
   align-items: center;
+  gap: var(--s2);
   min-height: 44px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--text);
   text-decoration: none;
-  letter-spacing: .01em;
+  letter-spacing: -.01em;
 }
+.mark { width: 1.5rem; height: 1.5rem; flex: none; }
+.mark__steps { fill: var(--accent); }
+.mark__wall  { fill: currentColor; }
+
 .nav__list {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--s1);
   list-style: none;
   margin: 0; padding: 0;
@@ -179,6 +250,7 @@ section h3 {
   border-radius: var(--radius);
   color: var(--muted);
   text-decoration: none;
+  transition: color .15s var(--ease), background-color .15s var(--ease);
 }
 .nav__list a:hover { color: var(--text); background: var(--raised); }
 
@@ -190,15 +262,54 @@ section h3 {
   box-shadow: inset 0 -2px 0 var(--accent);
 }
 
+/* The theme control: a form of three buttons, no script. */
+.theme-switch {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+.theme-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color .15s var(--ease), background-color .15s var(--ease);
+}
+.theme-switch button:hover { color: var(--text); }
+.theme-switch button[aria-pressed="true"] {
+  background: var(--surface);
+  border-color: var(--muted);
+  color: var(--text);
+}
+.theme-switch svg { width: 1.15rem; height: 1.15rem; }
+
+/* --- cards: one look for every bordered panel ------------------------- */
+
+.callout, .stat, .badge, .advanced, .ladder-reveal, .level, .empty {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-shadow);
+}
+
 /* --- callouts ---------------------------------------------------------- */
 
 .callout {
   margin: var(--s6) 0;
-  padding: var(--s4);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  padding: var(--s4) var(--s6);
   border-left: 3px solid var(--accent);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border-radius: 0 var(--radius-card) var(--radius-card) 0;
 }
 .callout > :last-child { margin-bottom: 0; }
 .callout dt { font-weight: 600; margin-top: var(--s3); }
@@ -234,16 +345,15 @@ section h3 {
 .field { margin-bottom: var(--s6); }
 .field__label {
   display: block;
-  font-size: .8rem;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  color: var(--muted);
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--text);
   margin-bottom: var(--s2);
 }
 .field__control {
   display: flex;
   align-items: stretch;
-  border: 1px solid var(--border);
+  border: 1px solid var(--muted);
   border-radius: var(--radius);
   background: var(--surface);
   overflow: hidden;
@@ -306,7 +416,7 @@ fieldset.field > legend {
 .checkbox-group {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s3);
+  gap: var(--s2);
 }
 .checkbox {
   display: flex;
@@ -314,12 +424,13 @@ fieldset.field > legend {
   gap: var(--s2);
   min-height: 44px;
   padding: 0 var(--s4);
-  border: 1px solid var(--border);
+  border: 1px solid var(--muted);
   border-radius: var(--radius);
   background: var(--surface);
   cursor: pointer;
+  transition: background-color .15s var(--ease), border-color .15s var(--ease);
 }
-.checkbox input { accent-color: var(--accent); width: 1.1em; height: 1.1em; }
+.checkbox input { accent-color: var(--accent); width: 1.1em; height: 1.1em; margin: 0; }
 /* Progressive enhancement only — the native checkbox already shows checked
    state without this, so an unsupporting browser loses nothing functional. */
 .checkbox:has(input:checked) { border-color: var(--accent); background: var(--accent-dim); }
@@ -336,11 +447,9 @@ fieldset.field > legend {
 
 .advanced {
   margin: var(--s8) 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
 }
-.advanced > summary {
+.advanced > summary,
+.ladder-reveal > summary {
   cursor: pointer;
   padding: var(--s3) var(--s4);
   min-height: 44px;
@@ -354,6 +463,8 @@ fieldset.field > legend {
 
 /* --- buttons ----------------------------------------------------------- */
 
+/* Every variant has a real fill and an edge from the passing list (§7):
+   --accent, --muted or --danger. Never a transparent button. */
 .button {
   display: inline-flex;
   align-items: center;
@@ -363,39 +474,31 @@ fieldset.field > legend {
   padding: 0 var(--s6);
   border: 1px solid var(--accent);
   border-radius: var(--radius);
-  background: var(--accent-dim);
-  color: var(--text);
+  background: var(--accent);
+  color: var(--on-accent);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
   text-decoration: none;
+  transition: background-color .15s var(--ease), color .15s var(--ease);
 }
-.button:hover { background: var(--accent); color: var(--bg); }
+.button:hover { background: color-mix(in oklab, var(--accent) 85%, var(--text)); }
 
-/* A surface of its own, not `transparent`. A control the reader is meant to
-   press must not be a hole in the page — the same defect the Suggest button
-   was fixed for in item B, left behind on the secondary variant.
-
-   The border does the work, and it has to be `--muted`. Measured against
-   `--bg` on 2026-09-04: `--border` is 1.42:1 and `--raised` 1.19:1, where a
-   UI boundary needs 3:1 — no surface token in this palette can carry a button
-   edge on its own, which is why every other variant borders in `--accent` or
-   `--danger`. `--muted` is 6.48:1 and still reads quieter than either. */
 .button--quiet {
-  background: var(--raised);
+  background: var(--surface);
   border-color: var(--muted);
   color: var(--text);
 }
-.button--quiet:hover { background: var(--border); color: var(--text); }
+.button--quiet:hover { background: var(--raised); color: var(--text); }
 
-/* Outlined, never solid: a solid red button invites the misclick it exists to
-   prevent. */
+/* Outlined in red, never solid: a solid red button invites the misclick it
+   exists to prevent. It still has a fill of its own. */
 .button--danger {
-  background: transparent;
+  background: var(--surface);
   border-color: var(--danger);
   color: var(--danger);
 }
-.button--danger:hover { background: var(--danger); color: var(--bg); }
+.button--danger:hover { background: var(--danger); color: var(--on-accent); }
 
 .actions {
   display: flex;
@@ -415,26 +518,24 @@ fieldset.field > legend {
   list-style: none;
 }
 .stat {
-  padding: var(--s4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  padding: var(--s4) var(--s4) var(--s4);
 }
 .stat__label {
   display: block;
-  font-size: .8rem;
-  letter-spacing: .04em;
-  text-transform: uppercase;
+  font-size: .85rem;
+  font-weight: 600;
   color: var(--muted);
 }
 .stat__value {
   display: block;
   margin-top: var(--s1);
-  font-size: 1.6rem;
-  line-height: 1.2;
+  font-size: 1.85rem;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -.02em;
 }
 .stat--wall .stat__value { color: var(--danger); }
-.stat__note { display: block; font-size: .85rem; color: var(--muted); }
+.stat__note { display: block; margin-top: var(--s1); font-size: .85rem; color: var(--muted); }
 
 /* --- strategy comparison ------------------------------------------------ */
 
@@ -458,27 +559,13 @@ fieldset.field > legend {
 }
 
 /* Same pattern as .advanced — the established disclosure, not a second one. */
-.ladder-reveal {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-.ladder-reveal > summary {
-  cursor: pointer;
-  padding: var(--s3) var(--s4);
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  gap: var(--s3);
-  font-weight: 600;
-}
 .ladder-reveal > :not(summary) { padding: 0 var(--s4) var(--s4); }
 
 /* --- opener badge -------------------------------------------------------- */
 
 /* The ordinary case, ahead of the ladder's worst case. A left border, like
-   the ramp, but on its own axis (target met or not) — never the same tint
-   vocabulary applied to a different question. */
+   the ramp, but on its own axis — never the same tint vocabulary applied to a
+   different question. */
 .badge {
   display: flex;
   flex-wrap: wrap;
@@ -487,15 +574,12 @@ fieldset.field > legend {
   row-gap: var(--s1);
   margin-bottom: var(--s4);
   padding: var(--s3) var(--s4);
-  background: var(--surface);
-  border: 1px solid var(--border);
   border-left: 3px solid var(--calm);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border-radius: 0 var(--radius-card) var(--radius-card) 0;
 }
 .badge__label {
-  font-size: .8rem;
-  letter-spacing: .04em;
-  text-transform: uppercase;
+  font-size: .85rem;
+  font-weight: 600;
   color: var(--muted);
 }
 .badge__value {
@@ -540,14 +624,14 @@ fieldset.field > legend {
   z-index: 2;
   background: var(--raised);
   color: var(--muted);
-  font-size: .7rem;
+  font-size: .72rem;
   font-weight: 600;
   letter-spacing: .02em;
   text-transform: uppercase;
   text-align: left;
 }
 .ladder thead th.num { text-align: right; }
-.ladder tbody tr:nth-child(even) { background: rgb(255 255 255 / 2%); }
+.ladder tbody tr:nth-child(even) { background: var(--zebra); }
 
 /* Not sticky any more: below 48rem the ladder is a stack of cards and has
    nothing to scroll sideways, and above it the whole table fits. */
@@ -624,15 +708,15 @@ td.win-short .win-note { color: var(--recovery-short); }
    columns into a scroll at tablet widths. */
 .ladder.funding-table td.elsewhere { white-space: normal; }
 .funding-wall__tag {
-  font-size: .7rem;
+  font-size: .72rem;
   letter-spacing: .04em;
   text-transform: uppercase;
 }
 
-/* The wall is not a data row and must not read as one. */
+/* The wall is not a data row and must not read as one. Never animated. */
 .ladder .wall-row {
   border-left: 3px solid var(--danger);
-  background: rgb(248 81 73 / 8%);
+  background: var(--wall-tint);
 }
 .ladder .wall-row td {
   border-bottom: 0;
@@ -650,9 +734,8 @@ td.win-short .win-note { color: var(--recovery-short); }
 
 .legend__label {
   margin: var(--s4) 0 0;
-  font-size: .75rem;
-  letter-spacing: .04em;
-  text-transform: uppercase;
+  font-size: .8rem;
+  font-weight: 600;
   color: var(--muted);
 }
 .legend__label + .legend { margin-top: var(--s2); }
@@ -708,12 +791,77 @@ td.win-short .win-note { color: var(--recovery-short); }
 /* Numbers sit on the right, under their headers. The `.runs td` rule above
    was overriding the site-wide right alignment for numbers, so say it here. */
 .runs th.num, .runs td.num { text-align: right; }
-.runs tbody tr:nth-child(even) { background: rgb(255 255 255 / 2%); }
+.runs tbody tr:nth-child(even) { background: var(--zebra); }
 /* If the timestamp has to wrap, put the time under the date. Without this the
    browser splits the date itself at its dashes ("2026-" / "09-" / "04"). */
 .stamp span { white-space: nowrap; }
 .runs .outcome-wall { color: var(--danger); }
 .runs .outcome-clear { color: var(--calm); }
+
+/* --- the risk planner -------------------------------------------------- */
+
+.planner-form { max-width: none; }
+/* `minmax(0, 1fr)`, not `1fr`: a bare `1fr` track is `minmax(auto, 1fr)`, so an
+   input's intrinsic ~230px width became each column's floor and pushed the risk
+   row 184px off a 375px screen (measured 2026-10-23). */
+.field-row {
+  display: grid;
+  gap: 0 var(--s4);
+  grid-template-columns: minmax(0, 1fr);
+}
+/* The four risk inputs are one question asked four times: two to a row on a
+   phone, four across from 48rem. */
+.risk-row { display: grid; gap: var(--s3); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.risk-row .field { margin-bottom: 0; }
+.weekday-group .checkbox { padding: 0 var(--s3); }
+
+.stats--plan { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.stats--plan .stat--hero { grid-column: 1 / -1; }
+.stat--hero .stat__value { font-size: 2.75rem; }
+
+.levels {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: 1fr;
+  margin: 0 0 var(--s8);
+  padding: 0;
+  list-style: none;
+}
+.level {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s4);
+  border-top: 3px solid var(--border);
+}
+.level h3 { font-size: 1.05rem; margin: 0 0 var(--s3); }
+.level__facts { margin: 0 0 var(--s4); }
+.level__facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s1) 0;
+  border-bottom: 1px solid var(--border);
+}
+.level__facts dt { color: var(--muted); font-size: .85rem; }
+.level__facts dd { margin: 0; text-align: right; font-weight: 500; }
+.level__verdict { margin: auto 0 0; font-weight: 600; font-size: .95rem; }
+/* The verdict's words carry it; colour only reinforces them. */
+.level--out_of_reach { border-top-color: var(--danger); }
+.level--out_of_reach .level__verdict { color: var(--danger); }
+.level--steep { border-top-color: var(--caution); }
+.level--steep .level__verdict { color: var(--caution); }
+
+.schedule-reveal { margin-bottom: var(--s8); }
+.schedule-reveal > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  margin-bottom: var(--s3);
+}
+.formulas { margin-bottom: var(--s8); }
+.formulas p.figure { margin-bottom: var(--s2); overflow-wrap: anywhere; }
 
 /* --- both tables are cards on a phone ---------------------------------- */
 /*
@@ -795,7 +943,7 @@ td.win-short .win-note { color: var(--recovery-short); }
     display: inline;
     color: var(--muted);
     font-family: var(--font-prose);
-    font-size: .7rem;
+    font-size: .72rem;
     font-weight: 600;
     letter-spacing: .04em;
     text-transform: uppercase;
@@ -834,9 +982,8 @@ td.win-short .win-note { color: var(--recovery-short); }
   padding: var(--s12) var(--s4);
   text-align: center;
   color: var(--muted);
-  background: var(--surface);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
+  border-style: dashed;
+  box-shadow: none;
 }
 
 /* --- worked example on the theory page --------------------------------- */
@@ -855,19 +1002,22 @@ td.win-short .win-note { color: var(--recovery-short); }
   color: var(--muted);
   font-size: .85rem;
 }
-.footer p { max-width: var(--measure); margin: 0 auto; }
+.footer p { max-width: var(--measure); margin: 0 auto var(--s2); }
+.footer p:last-child { margin-bottom: 0; }
 
 /* --- breakpoints (two, deliberately) ----------------------------------- */
 
 @media (min-width: 48rem) {
   .page { padding: var(--s12) var(--s8) var(--s16); }
+  .nav { padding: var(--s2) var(--s8); }
   .stats { grid-template-columns: repeat(3, 1fr); }
   .form--split { max-width: none; }
 
   .table-scroll {
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: var(--radius-card);
     background: var(--surface);
+    box-shadow: var(--card-shadow);
   }
 
   /* On tablet widths the eight history columns don't fit with full padding,
@@ -886,10 +1036,15 @@ td.win-short .win-note { color: var(--recovery-short); }
      phone's tighter type and padding until there is genuinely room. */
   .example .ladder { font-size: .82rem; }
   .example .ladder th, .example .ladder td { padding: var(--s2) var(--s3); }
+
+  .field-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .risk-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .stats--plan { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .levels { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
 }
 
 @media (min-width: 72rem) {
-  h1 { font-size: 2.25rem; }
+  h1 { font-size: 2.5rem; }
   .stats { gap: var(--s4); }
   .runs th, .runs td { padding: var(--s3) var(--s4); }
 }

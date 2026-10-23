@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .steps { fill: #0b5fd6; }
+    .wall  { fill: #11151c; }
+    @media (prefers-color-scheme: dark) {
+      .steps { fill: #4d9fff; }
+      .wall  { fill: #e6e9ef; }
+    }
+  </style>
+  <path class="steps" d="M2 25h4v3H2zM7 22h4v6H7zM12 17h4v11h-4zM17 9h4v19h-4z"/>
+  <path class="wall" d="M24 3h6v25h-6z"/>
+</svg>

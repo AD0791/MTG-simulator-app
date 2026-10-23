@@ -1,7 +1,21 @@
 {% extends "base.html" %}
 
-{% block title %}The wall — Martingale Wall Simulator{% endblock %}
-{% block description %}How a recovery staking plan escalates, and why it meets a wall below a 100% payout.{% endblock %}
+{% block title %}Martingale Wall — where a recovery staking plan breaks{% endblock %}
+{% block description %}How a martingale or recovery staking plan escalates, and why below a 100% payout it always meets a wall: the stake the balance can't cover.{% endblock %}
+{% block structured_data %}
+  <script type="application/ld+json">
+    {{ {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Martingale Wall",
+      "url": absolute_url(request, "/"),
+      "description": "Finds the losing streak a staking plan can absorb before its next stake exceeds the balance, and explains why that wall is unavoidable below a 100% payout.",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Any",
+      "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+    } | tojson }}
+  </script>
+{% endblock %}
 {% block page_class %}page--prose{% endblock %}
 
 {% block content %}

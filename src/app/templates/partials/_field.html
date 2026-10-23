@@ -5,9 +5,11 @@
   The control is `type="text"` with a numeric `inputmode` rather than
   `type="number"`: a number input silently discards a value it cannot parse, and
   a rejected submission has to come back with exactly what the reader typed.
-  Validation is the server's job either way.
+  Validation is the server's job either way. A date is the exception
+  (`type="date"`): the native picker can only produce a valid ISO date or
+  nothing, so it loses nothing the reader typed.
 #}
-{% macro field(name, label, values, errors, help="", prefix="", suffix="", inputmode="decimal") %}
+{% macro field(name, label, values, errors, help="", prefix="", suffix="", inputmode="decimal", type="text") %}
   {% set value = values.get(name, "") %}
   {% set error = errors.get(name) %}
   <div class="field{% if error %} field--invalid{% endif %}">
@@ -17,8 +19,8 @@
       <input
         id="{{ name }}"
         name="{{ name }}"
-        type="text"
-        inputmode="{{ inputmode }}"
+        type="{{ type }}"
+        {% if type == "text" %}inputmode="{{ inputmode }}"{% endif %}
         autocomplete="off"
         value="{{ value }}"
         {% if error %}aria-invalid="true"{% endif %}

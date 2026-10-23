@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% from "partials/_field.html" import field %}
+
+{% block title %}Capital target risk planner — Martingale Wall{% endblock %}
+{% block description %}The daily growth a capital target requires by a date, and how many wins that takes at each risk per trade or per session.{% endblock %}
+
+{% macro money(amount) %}${{ "{:,.2f}".format(amount) }}{% endmacro %}
+{% macro day(d) %}{{ d.day }} {{ d.strftime("%b %Y") }}{% endmacro %}
+
+{% block content %}
+<header>
+  <h1>Plan for a capital target</h1>
+  <p class="lede">
+    Say what you have, what you want, and by when. The planner works out the daily growth that
+    takes, and how many of your trades or sessions would have to win for it at each risk level.
+    It states what the target requires. It does not estimate whether anyone wins that often.
+  </p>
+</header>
+
+{% if errors.get("__form__") %}
+  <p class="field__error" role="alert">{{ errors["__form__"] }}</p>
+{% endif %}
+
+{% set style = values.get("style") or "session" %}
+{% set unit = "session" if style == "session" else "trade" %}
+
+{#- A GET form, so the address holds the whole plan: Back, reload and a bookmark
+    all bring the same answer back. #}
+<form class="form planner-form" method="get" action="/planner" novalidate>
+  <div class="field-row">
+    {{ field("capital", "Capital now", values, errors,
+             help="What the account holds today.", prefix="$") }}
+    {{ field("target_capital", "Target capital", values, errors,
+             help="Where you want the account to be by the end date.", prefix="$") }}
+  </div>
+
+  <div class="field-row">
+    {{ field("start_date", "Start date", values, errors, type="date",
+             help="The first day that can count. Blank means today.") }}
+    {{ field("end_date", "End date", values, errors, type="date",
+             help="The last day, included. Blank means 30 days from today.") }}
+  </div>
+
+  <div class="field-row">
+    {{ field("payout_percent", "Payout", values, errors, suffix="%",
+             help="What a winning stake returns as profit, as your broker quotes it.") }}
+    {{ field("per_day", "Trades or sessions per day", values, errors, inputmode="numeric",
+             help=("Sessions a day — each one an initial trade plus, only if it loses, one recharge."
+                   if style == "session" else "Single trades a day, each one sized from the balance as it stands.")) }}
+  </div>
+
+  {% set style_error = errors.get("style") %}
+  <fieldset class="field{% if style_error %} field--invalid{% endif %}">
+    <legend class="field__label">How you trade</legend>
+    <div class="checkbox-group" aria-describedby="{% if style_error %}style-error {% endif %}style-help">
+      <label class="checkbox">
+        <input type="radio" name="style" value="trade" {% if style == "trade" %}checked{% endif %}>
+        Single trades
+      </label>
+      <label class="checkbox">
+        <input type="radio" name="style" value="session" {% if style != "trade" %}checked{% endif %}>
+        Sessions: trade + one recharge
+      </label>
+    </div>
+    {% if style_error %}<p class="field__error" id="style-error">{{ style_error }}</p>{% endif %}
+    <p class="field__help" id="style-help">
+      A session's risk is its whole worst case: the initial trade takes a third of it, and the
+      recharge, double the initial, takes the rest.
+    </p>
+  </fieldset>
+
+  {% set chosen_days = values.get("weekdays", []) %}
+  {% set weekdays_error = errors.get("weekdays") %}
+  <fieldset class="field weekday-group{% if weekdays_error %} field--invalid{% endif %}">
+    <legend class="field__label">Trading days</legend>
+    <div class="checkbox-group" aria-describedby="{% if weekdays_error %}weekdays-error {% endif %}weekdays-help">
+      {% for name in weekday_names %}
+        <label class="checkbox">
+          <input type="checkbox" name="weekdays" value="{{ loop.index0 }}"
+                 {% if loop.index0|string in chosen_days %}checked{% endif %}>
+          {{ name }}
+        </label>
+      {% endfor %}
+    </div>
+    {% if weekdays_error %}<p class="field__error" id="weekdays-error">{{ weekdays_error }}</p>{% endif %}
+    <p class="field__help" id="weekdays-help">
+      Only these days count toward the growth. OTC markets also trade at weekends.
+    </p>
+  </fieldset>
+
+  <fieldset class="field">
+    <legend class="field__label">Risk per {{ unit }} to compare</legend>
+    <div class="risk-row">
+      {% for name in ["risk_1", "risk_2", "risk_3", "risk_4"] %}
+        {{ field(name, "Risk " ~ loop.index, values, errors, suffix="%") }}
+      {% endfor %}
+    </div>
+    <p class="field__help">
+      Each is a share of the balance as it stands, so the stake grows and shrinks with the account.
+      The first is required; leave any of the others blank.
+    </p>
+  </fieldset>
+
+  <div class="actions">
+    <button class="button" type="submit">Show what it requires</button>
+    <a class="button button--quiet" href="/planner?reset=1">Reset to defaults</a>
+  </div>
+</form>
+
+{% if plan %}
+  {% set units_word = plan.style ~ "s" %}
+  <h2>What the target requires</h2>
+
+  <ul class="stats stats--plan">
+    <li class="stat stat--hero">
+      <span class="stat__label">Daily growth</span>
+      <span class="stat__value">{{ "%.2f"|format(plan.daily_growth_percent) }}%</span>
+      <span class="stat__note">every trading day, compounded, from {{ money(plan.capital) }} to {{ money(plan.target_capital) }}</span>
+    </li>
+    <li class="stat">
+      <span class="stat__label">Trading days</span>
+      <span class="stat__value">{{ plan.trading_days }}</span>
+      <span class="stat__note">{{ day(plan.first_day) }} to {{ day(plan.last_day) }}</span>
+    </li>
+    <li class="stat">
+      <span class="stat__label">Total growth</span>
+      <span class="stat__value">{{ "%.2f"|format(plan.total_growth_percent) }}%</span>
+      <span class="stat__note">over {{ plan.units }} {{ units_word }}</span>
+    </li>
+    <li class="stat">
+      <span class="stat__label">Day one profit</span>
+      <span class="stat__value">{{ money(plan.day_one_profit) }}</span>
+      <span class="stat__note">to close the first day at {{ money(plan.days[0].target_balance) }}</span>
+    </li>
+    <li class="stat">
+      <span class="stat__label">Per {{ plan.style }}</span>
+      <span class="stat__value">{{ "%.3f"|format(plan.unit_growth_percent) }}%</span>
+      <span class="stat__note">at {{ plan.per_day }} {{ units_word }} a day</span>
+    </li>
+  </ul>
+
+  <h2>At each risk level</h2>
+  {% if plan.style == "session" %}
+    <p class="note">
+      A session's figures are a range: the fewer wins if every win comes on the initial trade, the
+      more if every win needs the recharge. The verdict uses the harder case.
+    </p>
+  {% endif %}
+  <ul class="levels">
+    {% for level in plan.levels %}
+      <li class="level level--{{ level.band }}">
+        <h3>{{ "%g"|format(level.risk_percent) }}% risk per {{ plan.style }}</h3>
+        <dl class="level__facts">
+          <div>
+            <dt>Stake at the start</dt>
+            <dd class="figure">
+              {%- if level.recharge is not none -%}
+                {{ money(level.stake) }} + {{ money(level.recharge) }}
+              {%- else -%}
+                {{ money(level.stake) }}
+              {%- endif -%}
+            </dd>
+          </div>
+          <div>
+            <dt>A win adds</dt>
+            <dd class="figure">
+              {%- if plan.style == "session" -%}
+                +{{ "%.3f"|format(level.win_gain_percent) }}% to +{{ "%.3f"|format(level.win_gain_best_percent) }}%
+              {%- else -%}
+                +{{ "%.3f"|format(level.win_gain_percent) }}%
+              {%- endif -%}
+            </dd>
+          </div>
+          <div>
+            <dt>A loss costs</dt>
+            <dd class="figure">&minus;{{ "%g"|format(level.loss_percent) }}%</dd>
+          </div>
+          <div>
+            <dt>Break-even win share</dt>
+            <dd class="figure">{{ "%.2f"|format(level.breakeven_percent) }}%</dd>
+          </div>
+          <div>
+            <dt>Wins needed</dt>
+            <dd class="figure">
+              {%- if level.wins_needed_best != level.wins_needed -%}
+                {{ level.wins_needed_best }}&ndash;{{ level.wins_needed }} of {{ level.units }}
+              {%- else -%}
+                {{ level.wins_needed }} of {{ level.units }}
+              {%- endif -%}
+            </dd>
+          </div>
+          <div>
+            <dt>Share of all {{ units_word }}</dt>
+            <dd class="figure">{{ "%.2f"|format(level.required_percent) }}%</dd>
+          </div>
+          <div>
+            <dt>Each day</dt>
+            <dd class="figure">win {{ level.wins_per_day }} of every {{ level.per_day }}</dd>
+          </div>
+        </dl>
+        <p class="level__verdict">{{ level.verdict }}</p>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <details class="schedule-reveal"{% if plan.trading_days <= 31 %} open{% endif %}>
+    <summary>Day-by-day schedule ({{ plan.trading_days }} trading days)</summary>
+    <div class="table-scroll">
+      <table class="ladder schedule table-card">
+        <caption class="visually-hidden">
+          For each trading day, the balance to start from, the balance to reach by its close, and
+          the profit that takes.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Day</th>
+            <th scope="col">Date</th>
+            <th scope="col" class="num">Start balance</th>
+            <th scope="col" class="num">Target balance</th>
+            <th scope="col" class="num">Profit needed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in plan.days %}
+            <tr>
+              <th scope="row" class="entry">{{ row.number }}</th>
+              <td><span class="cell-label">Date</span><time datetime="{{ row.date.isoformat() }}">{{ row.date.strftime("%a") }} {{ day(row.date) }}</time></td>
+              <td class="num"><span class="cell-label">Start balance</span>{{ "{:,.2f}".format(row.start_balance) }}</td>
+              <td class="num"><span class="cell-label">Target balance</span>{{ "{:,.2f}".format(row.target_balance) }}</td>
+              <td class="num"><span class="cell-label">Profit needed</span>{{ "{:,.2f}".format(row.profit) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <section class="formulas">
+    <h2>How it is worked out</h2>
+    <p>
+      Every {{ plan.style }} risks the same share of the balance as it stands, so wins and losses
+      multiply and their order does not matter. With r the risk and w what a win adds:
+    </p>
+    <p class="figure">
+      daily = (target &divide; capital)<sup>1 &divide; D</sup> &minus; 1
+      <span class="visually-hidden">daily growth equals target divided by capital, to the power of one over D, minus one, where D is the number of trading days</span>
+    </p>
+    {% if plan.style == "session" %}
+      <p class="figure">
+        w = r &times; (2 &times; payout &minus; 1) &divide; 3 &nbsp;to&nbsp; r &times; payout &divide; 3
+        <span class="visually-hidden">a session win adds between r times two payout minus one, divided by three, when the recharge wins, and r times payout divided by three, when the initial trade wins</span>
+      </p>
+    {% else %}
+      <p class="figure">
+        w = r &times; payout
+        <span class="visually-hidden">a win adds r times the payout</span>
+      </p>
+    {% endif %}
+    <p class="figure">
+      wins = &lceil;(ln(target &divide; capital) &minus; N &times; ln(1 &minus; r)) &divide; (ln(1 + w) &minus; ln(1 &minus; r))&rceil;
+      <span class="visually-hidden">wins needed equals the ceiling of: the natural log of target over capital, minus N times the natural log of one minus r, all divided by the natural log of one plus w minus the natural log of one minus r, where N is every {{ plan.style }} in the range</span>
+    </p>
+    <p class="figure">
+      break-even share = &minus;ln(1 &minus; r) &divide; (ln(1 + w) &minus; ln(1 &minus; r))
+      <span class="visually-hidden">the break-even win share equals minus the natural log of one minus r, divided by the natural log of one plus w minus the natural log of one minus r</span>
+    </p>
+    <p>
+      The target is out of reach when the wins needed exceed every {{ plan.style }} available; the
+      planner then shows where winning all of them would end.
+    </p>
+  </section>
+
+  <p class="note">
+    This states what the target requires. It does not estimate whether anyone wins that often. At a
+    92% payout, merely breaking even already needs about 52% of single trades and about 78% of
+    sessions.
+  </p>
+{% endif %}
+{% endblock %}

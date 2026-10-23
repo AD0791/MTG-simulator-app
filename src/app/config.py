@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # SQLite for the prototype; a Postgres or MySQL URL is the only change in production.
     database_url: str = "sqlite:///./app.db"
 
+    # The public origin, e.g. https://mtg-simulator-app.fastapicloud.dev, for
+    # canonical links, Open Graph, robots.txt and the sitemap. Unset, they use
+    # the request's own base URL.
+    site_url: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,15 +1,69 @@
+{#- Every static URL carries `?v=` — the file's mtime — so a changed file is
+    always fetched fresh. StaticFiles sends no Cache-Control. -#}
+{%- macro asset(path) -%}
+  {{ url_for('static', path='/' ~ path) }}?v={{ asset_version(path) }}
+{%- endmacro -%}
+{%- set theme = theme_of(request) -%}
+{%- set page_url = absolute_url(request, request.url.path) -%}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{% if theme %} data-theme="{{ theme }}"{% endif %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Martingale Wall Simulator{% endblock %}</title>
-  <meta name="description" content="{% block description %}Finds the entry at which a staking plan can no longer fund its next stake.{% endblock %}">
-  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v={{ asset_version('css/app.css') }}">
+  <title>{% block title %}Martingale Wall{% endblock %}</title>
+  <meta name="description" content="{% block description %}Finds the losing streak a staking plan can absorb before its next stake exceeds the balance.{% endblock %}">
+  {% block robots %}{% endblock %}
+  <link rel="canonical" href="{{ page_url }}">
+
+  <meta property="og:site_name" content="Martingale Wall">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{ self.title() }}">
+  <meta property="og:description" content="{{ self.description() }}">
+  <meta property="og:url" content="{{ page_url }}">
+  <meta property="og:image" content="{{ absolute_url(request, '/static/img/og.png?v=' ~ asset_version('img/og.png')) }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+
+  {#- The first match wins, so a chosen theme goes first and overrides both. #}
+  {% if theme %}<meta name="theme-color" content="{{ '#ffffff' if theme == 'light' else '#12151c' }}">{% endif %}
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#12151c">
+
+  <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
+  <link rel="manifest" href="{{ asset('site.webmanifest') }}">
+
+  <link rel="preload" href="{{ asset('fonts/geist-latin-wght-normal.woff2') }}" as="font" type="font/woff2" crossorigin>
+  {#- Here rather than in app.css so the font URLs carry `?v=` and match the
+      preload exactly; a mismatched URL downloads the font twice. #}
+  <style>
+    @font-face {
+      font-family: "Geist";
+      font-style: normal;
+      font-weight: 100 900;
+      font-display: swap;
+      src: url("{{ asset('fonts/geist-latin-wght-normal.woff2') }}") format("woff2");
+    }
+    @font-face {
+      font-family: "Geist Mono";
+      font-style: normal;
+      font-weight: 100 900;
+      font-display: swap;
+      src: url("{{ asset('fonts/geist-mono-latin-wght-normal.woff2') }}") format("woff2");
+    }
+  </style>
+  <link rel="stylesheet" href="{{ asset('css/vendor/open-props/borders.min.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/vendor/open-props/shadows.min.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/vendor/open-props/easings.min.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+  {% block structured_data %}{% endblock %}
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  {% include "partials/_nav.html" %}
+  <header class="site-header">
+    {% include "partials/_nav.html" %}
+  </header>
 
   <main id="main" class="page {% block page_class %}{% endblock %}">
     {% block content %}{% endblock %}
@@ -21,6 +75,7 @@
       account can no longer place the next one. It does not model win probability, predict
       markets, or suggest that the plan it models is profitable.
     </p>
+    <p>Free to use, with no account.</p>
   </footer>
 </body>
 </html>
